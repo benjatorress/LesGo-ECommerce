@@ -1,122 +1,184 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from 'react';
+import { Navbar, type ViewType } from './components/Navbar';
+import { HomeView } from './components/HomeView';
+import { CatalogView } from './components/CatalogView';
+import { CartView } from './components/CartView';
+import { AboutView } from './components/AboutView';
+import { ContactView } from './components/ContactView';
+import { ProductDetailModal } from './components/ProductDetailModal';
+import { AuthModal } from './components/AuthModal';
+import { InfoModal } from './components/InfoModal';
+import { INITIAL_CART, type Product, type CartItem } from './data/products';
+import './App.css';
 
-function App() {
-  const [count, setCount] = useState(0)
+export function App() {
+  const [currentView, setCurrentView] = useState<ViewType>('home');
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
+  const [cartItems, setCartItems] = useState<CartItem[]>(INITIAL_CART);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
+  const [infoModal, setInfoModal] = useState<'nosotros' | 'contacto' | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => {
+      setNotification(null);
+    }, 2800);
+  };
+
+  const handleAddToCart = (product: Product, quantity: number = 1) => {
+    setCartItems((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [...prev, { product, quantity }];
+    });
+    showNotification(`"${product.name}" (${quantity > 1 ? `${quantity}x` : '1x'}) añadido al carrito`);
+  };
+
+  const handleBuyNow = (product: Product, quantity: number = 1) => {
+    handleAddToCart(product, quantity);
+    setSelectedProduct(null);
+    setCurrentView('cart');
+  };
+
+  const handleUpdateQuantity = (productId: string, delta: number) => {
+    setCartItems((prev) => {
+      return prev
+        .map((item) => {
+          if (item.product.id === productId) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter((item): item is CartItem => item !== null);
+    });
+  };
+
+  const handleRemoveItem = (productId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+    showNotification('Producto eliminado del carrito');
+  };
+
+  const handleCheckout = () => {
+    showNotification('Redirigiendo a pasarela segura de pago VISA...');
+  };
+
+  const handleNavigateToCatalog = (category?: string) => {
+    if (category) {
+      setSelectedCatalogCategory(category);
+    }
+    setCurrentView('catalog');
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <div className="app-wrapper">
+      {/* Header con Logotipo LesGo y Dientes Lego */}
+      <Navbar
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        cartCount={cartCount}
+        onOpenAuth={(mode) => setAuthModal(mode)}
+      />
+
+      {/* Notificación flotante de acción */}
+      {notification && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '84px',
+            right: '24px',
+            backgroundColor: '#0F172A',
+            color: '#FFFFFF',
+            padding: '12px 20px',
+            borderRadius: '16px',
+            boxShadow: '0 12px 28px -6px rgba(15, 23, 42, 0.25)',
+            border: '1px solid #334155',
+            zIndex: 1100,
+            fontSize: '14px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}
         >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          <span style={{ fontSize: '16px' }}>🧱</span>
+          <span>{notification}</span>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Contenido Principal según Vista Activa */}
+      <main className="main-content">
+        {currentView === 'home' && (
+          <HomeView
+            onNavigateToCatalog={handleNavigateToCatalog}
+            onAddToCart={handleAddToCart}
+            onSelectProduct={(product) => setSelectedProduct(product)}
+          />
+        )}
+
+        {currentView === 'catalog' && (
+          <CatalogView
+            initialCategory={selectedCatalogCategory}
+            onAddToCart={handleAddToCart}
+            onSelectProduct={(product) => setSelectedProduct(product)}
+          />
+        )}
+
+        {currentView === 'cart' && (
+          <CartView
+            cartItems={cartItems}
+            onUpdateQuantity={handleUpdateQuantity}
+            onRemoveItem={handleRemoveItem}
+            onCheckout={handleCheckout}
+          />
+        )}
+
+        {currentView === 'nosotros' && (
+          <AboutView onGoToCatalog={() => setCurrentView('catalog')} />
+        )}
+
+        {currentView === 'contacto' && (
+          <ContactView />
+        )}
+      </main>
+
+      {/* Vista de Detalle de Producto al hacer clic en un set */}
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+        />
+      )}
+
+      {/* Modales de Autenticación */}
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          onClose={() => setAuthModal(null)}
+          onSwitchMode={(mode) => setAuthModal(mode)}
+        />
+      )}
+
+      {infoModal && (
+        <InfoModal
+          type={infoModal}
+          onClose={() => setInfoModal(null)}
+        />
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
