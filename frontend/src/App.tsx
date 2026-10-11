@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navbar, type ViewType } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
@@ -8,7 +8,9 @@ import { ContactView } from './components/ContactView';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { AuthModal } from './components/AuthModal';
 import { InfoModal } from './components/InfoModal';
+import { VentasModal } from './components/VentasModal';
 import { INITIAL_CART, type Product, type CartItem } from './data/products';
+import { getSession, clearSession, type Usuario } from './services/api';
 import './App.css';
 
 export function App() {
@@ -18,7 +20,18 @@ export function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [infoModal, setInfoModal] = useState<'nosotros' | 'contacto' | null>(null);
+  const [ventasModalOpen, setVentasModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Estado de usuario autenticado (cargado de LocalStorage si existe)
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+
+  useEffect(() => {
+    const session = getSession();
+    if (session.usuario) {
+      setCurrentUser(session.usuario);
+    }
+  }, []);
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
@@ -26,7 +39,23 @@ export function App() {
     setNotification(msg);
     setTimeout(() => {
       setNotification(null);
-    }, 2800);
+    }, 3200);
+  };
+
+  const handleLoginSuccess = (usuario: Usuario, _token: string) => {
+    setCurrentUser(usuario);
+    if (usuario.tipo === 'empleado') {
+      showNotification(`¡Bienvenido(a) ${usuario.nombre}! Acceso habilitado al Módulo de Ventas ERP.`);
+    } else {
+      showNotification(`¡Bienvenido(a) ${usuario.nombre}! Has iniciado sesión en la tienda LesGo.`);
+    }
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setCurrentUser(null);
+    setVentasModalOpen(false);
+    showNotification('Has cerrado tu sesión.');
   };
 
   const handleAddToCart = (product: Product, quantity: number = 1) => {
@@ -82,12 +111,15 @@ export function App() {
 
   return (
     <div className="app-wrapper">
-      {/* Header con Logotipo LesGo y Dientes Lego */}
+      {/* Header con Logotipo LesGo, Dientes Lego y Estado de Autenticación */}
       <Navbar
         currentView={currentView}
         setCurrentView={setCurrentView}
         cartCount={cartCount}
+        currentUser={currentUser}
         onOpenAuth={(mode) => setAuthModal(mode)}
+        onLogout={handleLogout}
+        onOpenVentasModal={() => setVentasModalOpen(true)}
       />
 
       {/* Notificación flotante de acción */}
@@ -111,7 +143,6 @@ export function App() {
             gap: '10px'
           }}
         >
-          <span style={{ fontSize: '16px' }}>🧱</span>
           <span>{notification}</span>
         </div>
       )}
@@ -168,6 +199,15 @@ export function App() {
           mode={authModal}
           onClose={() => setAuthModal(null)}
           onSwitchMode={(mode) => setAuthModal(mode)}
+          onLoginSuccess={handleLoginSuccess}
+        />
+      )}
+
+      {/* Modal Módulo de Ventas ERP para Empleados */}
+      {ventasModalOpen && currentUser && currentUser.acceso_modulo_ventas && (
+        <VentasModal
+          usuario={currentUser}
+          onClose={() => setVentasModalOpen(false)}
         />
       )}
 

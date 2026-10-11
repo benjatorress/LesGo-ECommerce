@@ -128,3 +128,229 @@ export async function getProductoByIdApi(id: string): Promise<Product | null> {
     return PRODUCTS.find((p) => p.id === id || p.code === id) || null;
   }
 }
+
+/* ==========================================================================
+   SERVICIOS DE AUTENTICACIÓN (LOGIN / SESIÓN)
+   ========================================================================== */
+
+export interface Usuario {
+  tipo: 'empleado' | 'cliente';
+  id_empleado?: number;
+  id_cliente?: number;
+  nombre: string;
+  apellido?: string;
+  nombre_completo: string;
+  rut: string;
+  email: string;
+  direccion?: string;
+  telefono?: string;
+  id_cargo?: number;
+  id_departamento?: number;
+  fecha_ingreso?: string;
+  estado: string;
+  acceso_modulo_ventas: boolean;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  token?: string;
+  usuario?: Usuario;
+  reason?: 'missing_fields' | 'invalid_credentials' | 'user_inactive' | 'network_error' | 'unknown_error';
+  statusHttp?: number;
+}
+
+const STORAGE_KEY_TOKEN = 'lesgo_auth_token';
+const STORAGE_KEY_USER = 'lesgo_auth_user';
+
+/**
+ * Guarda el token y el usuario en LocalStorage (y SessionStorage de respaldo)
+ */
+export function saveSession(token: string, usuario: Usuario): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(usuario));
+    sessionStorage.setItem(STORAGE_KEY_TOKEN, token);
+    sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(usuario));
+  } catch (err) {
+    console.warn('No se pudo guardar la sesión en Storage:', err);
+  }
+}
+
+/**
+ * Obtiene la sesión almacenada actualmente
+ */
+export function getSession(): { token: string | null; usuario: Usuario | null } {
+  try {
+    const token = localStorage.getItem(STORAGE_KEY_TOKEN) || sessionStorage.getItem(STORAGE_KEY_TOKEN);
+    const rawUser = localStorage.getItem(STORAGE_KEY_USER) || sessionStorage.getItem(STORAGE_KEY_USER);
+    const usuario = rawUser ? (JSON.parse(rawUser) as Usuario) : null;
+    return { token, usuario };
+  } catch {
+    return { token: null, usuario: null };
+  }
+}
+
+/**
+ * Elimina la sesión de LocalStorage y SessionStorage
+ */
+export function clearSession(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY_TOKEN);
+    localStorage.removeItem(STORAGE_KEY_USER);
+    sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+    sessionStorage.removeItem(STORAGE_KEY_USER);
+  } catch (err) {
+    console.warn('Error al limpiar la sesión:', err);
+  }
+}
+
+/**
+ * Llama a la API de inicio de sesión POST /api/auth/login
+ * Maneja códigos HTTP 200, 400 y 401
+ */
+export async function loginApi(credentials: LoginCredentials): Promise<AuthResponse> {
+  const url = `${API_BASE_URL}/auth/login`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(credentials)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || 'Error de autenticación',
+        reason: data.reason || (response.status === 401 ? 'invalid_credentials' : 'unknown_error'),
+        statusHttp: response.status
+      };
+    }
+
+    // Si la autenticación fue exitosa y trae token
+    if (data.success && data.token && data.usuario) {
+      saveSession(data.token, data.usuario);
+    }
+
+    return {
+      success: true,
+      message: data.message || 'Inicio de sesión exitoso',
+      token: data.token,
+      usuario: data.usuario,
+      statusHttp: response.status
+    };
+  } catch (error) {
+    console.warn('Fallo de conexión con backend al iniciar sesión, evaluando respaldo local:', error);
+    
+    // Fallback de contingencia frontend con la misma lógica si el backend no está disponible
+    const email = credentials.email?.trim().toLowerCase();
+    const pass = credentials.password?.trim();
+
+    if (!email || !pass) {
+      return {
+        success: false,
+        message: 'Debe ingresar su correo electrónico y contraseña.',
+        reason: 'missing_fields',
+        statusHttp: 400
+      };
+    }
+
+    if (email === 'inactivo@lesgo.cl') {
+      return {
+        success: false,
+        message: 'Tu cuenta de empleado se encuentra inactiva. Contacta al administrador del ERP o RRHH.',
+        reason: 'user_inactive',
+        statusHttp: 401
+      };
+    }
+
+    if (email === 'vendedor@lesgo.cl' && pass === 'password123') {
+      const usuario: Usuario = {
+        tipo: 'empleado',
+        id_empleado: 1,
+        id_cargo: 2,
+        id_departamento: 3,
+        nombre: 'Carlos',
+        apellido: 'Santana',
+        nombre_completo: 'Carlos Santana',
+        rut: '18.452.981-4',
+        email: 'vendedor@lesgo.cl',
+        estado: 'activo',
+        acceso_modulo_ventas: true
+      };
+      const token = `token_offline_emp_${Date.now()}`;
+      saveSession(token, usuario);
+      return {
+        success: true,
+        message: 'Inicio de sesión exitoso como Empleado (Modo local).',
+        token,
+        usuario,
+        statusHttp: 200
+      };
+    }
+
+    if (email === 'cliente@lesgo.cl' && pass === 'password123') {
+      const usuario: Usuario = {
+        tipo: 'cliente',
+        id_cliente: 1,
+        nombre: 'Valentina Soto',
+        nombre_completo: 'Valentina Soto',
+        rut: '20.345.678-9',
+        email: 'cliente@lesgo.cl',
+        estado: 'activo',
+        acceso_modulo_ventas: false
+      };
+      const token = `token_offline_cli_${Date.now()}`;
+      saveSession(token, usuario);
+      return {
+        success: true,
+        message: 'Inicio de sesión exitoso como Cliente (Modo local).',
+        token,
+        usuario,
+        statusHttp: 200
+      };
+    }
+
+    return {
+      success: false,
+      message: 'Correo o contraseña incorrectos.',
+      reason: 'invalid_credentials',
+      statusHttp: 401
+    };
+  }
+}
+
+/**
+ * Solicita recuperación / cambio de contraseña POST /api/auth/forgot-password
+ */
+export async function solicitarCambioPasswordApi(email: string): Promise<{ success: boolean; message: string }> {
+  const url = `${API_BASE_URL}/auth/forgot-password`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await response.json();
+    return {
+      success: response.ok && data.success,
+      message: data.message || 'Se ha procesado tu solicitud.'
+    };
+  } catch {
+    return {
+      success: true,
+      message: `Enlace para cambiar contraseña generado y enviado a ${email} (Modo simulado).`
+    };
+  }
+}
+

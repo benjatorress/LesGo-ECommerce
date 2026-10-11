@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import productosRoutes from './routes/productosRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,6 +20,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Rutas de autenticación
+app.use('/api/auth', authRoutes);
+
 // Rutas de productos (soporta tanto /api/productos como /api/products)
 app.use('/api/productos', productosRoutes);
 app.use('/api/products', productosRoutes);
@@ -34,4 +38,5 @@ app.use((req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor LesGo Backend ejecutándose en http://localhost:${PORT}`);
   console.log(`📦 Endpoint de productos: http://localhost:${PORT}/api/productos`);
+  console.log(`🔐 Endpoint de autenticación: http://localhost:${PORT}/api/auth/login`);
 });

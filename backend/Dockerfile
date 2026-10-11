@@ -6,8 +6,8 @@ WORKDIR /app
 # Copiar archivos de descripción de dependencias
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm ci --only=production
+# Instalar dependencias (incluyendo devDependencies para node --watch)
+RUN npm install
 
 # Copiar el código fuente
 COPY . .
@@ -15,5 +15,5 @@ COPY . .
 # Exponer puerto
 EXPOSE 5000
 
-# Comando para iniciar el backend
-CMD ["npm", "start"]
+# Comando para iniciar el backend con hot-reload
+CMD ["npm", "run", "dev"]
