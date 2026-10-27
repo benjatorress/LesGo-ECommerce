@@ -44,6 +44,9 @@ export const CartView: React.FC<CartViewProps> = ({
               const thumbImage = index === 0 
                 ? '/products/cart_item1.jpg' 
                 : '/products/cart_item2.jpg';
+              
+              const isMaxStockReached = item.quantity >= item.product.stock;
+              const isMinQuantityReached = item.quantity <= 1;
 
               return (
                 <article key={item.product.id} className="cart-item-card">
@@ -76,6 +79,11 @@ export const CartView: React.FC<CartViewProps> = ({
                           className="qty-btn"
                           onClick={() => onUpdateQuantity(item.product.id, -1)}
                           aria-label="Disminuir cantidad"
+                          disabled={isMinQuantityReached}
+                          style={{
+                            opacity: isMinQuantityReached ? 0.4 : 1,
+                            cursor: isMinQuantityReached ? 'not-allowed' : 'pointer'
+                          }}
                         >
                           <Minus size={13} strokeWidth={2.8} />
                         </button>
@@ -87,6 +95,11 @@ export const CartView: React.FC<CartViewProps> = ({
                           className="qty-btn"
                           onClick={() => onUpdateQuantity(item.product.id, 1)}
                           aria-label="Aumentar cantidad"
+                          disabled={isMaxStockReached}
+                          style={{
+                            opacity: isMaxStockReached ? 0.4 : 1,
+                            cursor: isMaxStockReached ? 'not-allowed' : 'pointer'
+                          }}
                         >
                           <Plus size={13} strokeWidth={2.8} />
                         </button>
