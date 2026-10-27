@@ -9,14 +9,14 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { AuthModal } from './components/AuthModal';
 import { InfoModal } from './components/InfoModal';
 import { VentasModal } from './components/VentasModal';
-import { INITIAL_CART, type Product, type CartItem } from './data/products';
+import type { Product } from './data/products';
 import { getSession, clearSession, type Usuario } from './services/api';
+import { useCart } from './context/CartContext.tsx';
 import './App.css';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
-  const [cartItems, setCartItems] = useState<CartItem[]>(INITIAL_CART);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [infoModal, setInfoModal] = useState<'nosotros' | 'contacto' | null>(null);
@@ -26,14 +26,14 @@ export function App() {
   // Estado de usuario autenticado (cargado de LocalStorage si existe)
   const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
 
+  const { cartItems, totalItems, addToCart, updateQuantity, removeItem } = useCart();
+
   useEffect(() => {
     const session = getSession();
     if (session.usuario) {
       setCurrentUser(session.usuario);
     }
   }, []);
-
-  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -58,43 +58,19 @@ export function App() {
     showNotification('Has cerrado tu sesión.');
   };
 
-  const handleAddToCart = (product: Product, quantity: number = 1) => {
-    setCartItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prev, { product, quantity }];
-    });
+  const handleAddToCartWithNotification = (product: Product, quantity: number = 1) => {
+    addToCart(product, quantity);
     showNotification(`"${product.name}" (${quantity > 1 ? `${quantity}x` : '1x'}) añadido al carrito`);
   };
 
   const handleBuyNow = (product: Product, quantity: number = 1) => {
-    handleAddToCart(product, quantity);
+    handleAddToCartWithNotification(product, quantity);
     setSelectedProduct(null);
     setCurrentView('cart');
   };
 
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) => {
-      return prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter((item): item is CartItem => item !== null);
-    });
-  };
-
-  const handleRemoveItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveItemWithNotification = (productId: string) => {
+    removeItem(productId);
     showNotification('Producto eliminado del carrito');
   };
 
@@ -115,7 +91,7 @@ export function App() {
       <Navbar
         currentView={currentView}
         setCurrentView={setCurrentView}
-        cartCount={cartCount}
+        cartCount={totalItems}
         currentUser={currentUser}
         onOpenAuth={(mode) => setAuthModal(mode)}
         onLogout={handleLogout}
@@ -152,7 +128,7 @@ export function App() {
         {currentView === 'home' && (
           <HomeView
             onNavigateToCatalog={handleNavigateToCatalog}
-            onAddToCart={handleAddToCart}
+            onAddToCart={handleAddToCartWithNotification}
             onSelectProduct={(product) => setSelectedProduct(product)}
           />
         )}
@@ -160,7 +136,7 @@ export function App() {
         {currentView === 'catalog' && (
           <CatalogView
             initialCategory={selectedCatalogCategory}
-            onAddToCart={handleAddToCart}
+            onAddToCart={handleAddToCartWithNotification}
             onSelectProduct={(product) => setSelectedProduct(product)}
           />
         )}
@@ -168,8 +144,8 @@ export function App() {
         {currentView === 'cart' && (
           <CartView
             cartItems={cartItems}
-            onUpdateQuantity={handleUpdateQuantity}
-            onRemoveItem={handleRemoveItem}
+            onUpdateQuantity={updateQuantity}
+            onRemoveItem={handleRemoveItemWithNotification}
             onCheckout={handleCheckout}
           />
         )}
@@ -188,7 +164,7 @@ export function App() {
         <ProductDetailModal
           product={selectedProduct}
           onClose={() => setSelectedProduct(null)}
-          onAddToCart={handleAddToCart}
+          onAddToCart={handleAddToCartWithNotification}
           onBuyNow={handleBuyNow}
         />
       )}
