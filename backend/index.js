@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import productosRoutes from './routes/productosRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import pedidosRoutes from './routes/pedidosRoutes.js';
 import carritoRoutes from './routes/carritoRoutes.js';
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/products', productosRoutes);
 
+app.use('/api/pedidos', pedidosRoutes);
 // Rutas de carrito
 app.use('/api/carrito', carritoRoutes);
 
@@ -43,5 +45,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor LesGo Backend ejecutándose en http://localhost:${PORT}`);
   console.log(`📦 Endpoint de productos: http://localhost:${PORT}/api/productos`);
   console.log(`🔐 Endpoint de autenticación: http://localhost:${PORT}/api/auth/login`);
+  console.log(`🧾 Endpoint de pedidos: http://localhost:${PORT}/api/pedidos/cliente/:id`);
   console.log(`🛒 Endpoint de carrito: http://localhost:${PORT}/api/carrito`);
 });
