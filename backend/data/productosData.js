@@ -11,7 +11,8 @@ export const PRODUCTOS = [
     code: '60130',
     image: '/products/item1_city.jpg',
     description: 'Ayuda a la policía a vigilar a los malhechores en la prisión costera de Lego City.',
-    featured: true
+    featured: true,
+    stock: 5
   },
   {
     id: 'lego-star-wars-atat',
@@ -25,7 +26,8 @@ export const PRODUCTOS = [
     code: '75288',
     image: '/products/item2_starwars.jpg',
     description: 'Revive la épica Batalla de Hoth con el formidable caminante AT-AT de Star Wars.',
-    featured: true
+    featured: true,
+    stock: 3
   },
   {
     id: 'lego-ninjago-dragon',
@@ -39,7 +41,8 @@ export const PRODUCTOS = [
     code: '71792',
     image: '/products/item3_ninjago.jpg',
     description: 'Transforma la veloz moto ninja en un imponente dragón para combatir a las fuerzas del mal.',
-    featured: false
+    featured: false,
+    stock: 10
   },
   {
     id: 'lego-batmobile-tumbler',
@@ -53,7 +56,8 @@ export const PRODUCTOS = [
     code: '76023',
     image: '/products/item4_batmobile.jpg',
     description: 'La icónica nave de combate terrestre del Caballero de la Noche en edición Ultimate Collector.',
-    featured: true
+    featured: true,
+    stock: 2
   },
   {
     id: 'lego-movie-ultrakatty',
@@ -67,7 +71,8 @@ export const PRODUCTOS = [
     code: '70827',
     image: '/products/item5_legomovie.jpg',
     description: 'Acompaña a Lucy y a la feroz Ultrakatty en una misión para salvar a sus amigos.',
-    featured: false
+    featured: false,
+    stock: 7
   },
   {
     id: 'lego-city-jungle',
@@ -81,6 +86,7 @@ export const PRODUCTOS = [
     code: '60157',
     image: '/products/item6_cityjungle.jpg',
     description: 'Explora la misteriosa selva de Lego City en busca del tesoro oculto entre las ruinas.',
-    featured: true
+    featured: true,
+    stock: 15
   }
 ];
