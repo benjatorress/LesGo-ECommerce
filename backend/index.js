@@ -4,6 +4,7 @@ import productosRoutes from './routes/productosRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import pedidosRoutes from './routes/pedidosRoutes.js';
 import carritoRoutes from './routes/carritoRoutes.js';
+import reclamosRoutes from './routes/reclamosRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,7 +33,8 @@ app.use('/api/products', productosRoutes);
 app.use('/api/pedidos', pedidosRoutes);
 // Rutas de carrito
 app.use('/api/carrito', carritoRoutes);
-
+//reclamos
+app.use('/api/reclamos', reclamosRoutes);
 // Manejador para rutas no encontradas
 app.use((req, res) => {
   res.status(404).json({

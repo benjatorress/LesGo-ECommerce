@@ -1,0 +1,667 @@
+/* ===================================================
+   HISTORIAL DE PEDIDOS + TRACKING + RECLAMOS
+   Usa las variables definidas en index.css
+   =================================================== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* Botón "Mis Pedidos" del Navbar */
+.orders-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 800;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.orders-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.orders-nav-btn.active {
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* Vista */
+.orders-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.orders-header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.orders-heading {
+  font-family: var(--font-brand);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.orders-counter-tag {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* Tabla */
+.orders-table-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.orders-table-scroll {
+  overflow-x: auto;
+}
+
+.orders-table {
+  width: 100%;
+  min-width: 700px;
+  border-collapse: collapse;
+}
+
+.orders-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+  padding: 14px 20px;
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.orders-table td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text-body);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.orders-table tbody tr:hover {
+  background: var(--bg-page);
+}
+
+.orders-table .orders-col-right {
+  text-align: right;
+}
+
+.order-number {
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.order-items-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+.order-total {
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.order-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.order-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.order-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface-card);
+  border: 1.5px solid var(--border-light);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 14px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.order-detail-btn:hover {
+  border-color: var(--lego-red);
+  color: var(--lego-red);
+  background: var(--lego-red-soft);
+}
+
+.order-detail-btn:focus-visible,
+.orders-primary-btn:focus-visible,
+.claim-open-btn:focus-visible,
+.claim-cancel-btn:focus-visible {
+  outline: 3px solid rgba(229, 37, 33, 0.35);
+  outline-offset: 2px;
+}
+
+/* Estados vacío / error / carga */
+.orders-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--surface-card);
+  border: 1.5px dashed #CBD5E1;
+  border-radius: 24px;
+}
+
+.orders-state-inline {
+  border: none;
+  padding: 32px 8px;
+}
+
+.orders-state-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.orders-state-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.orders-primary-btn {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--lego-red);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 11px 22px;
+  border-radius: 14px;
+  box-shadow: 0 3px 0 #991B1B;
+}
+
+.orders-primary-btn:hover {
+  background: var(--lego-red-hover);
+}
+
+.orders-primary-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #991B1B;
+}
+
+.orders-primary-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.animate-spin {
+  animation: ordersSpin 1s linear infinite;
+}
+
+@keyframes ordersSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Modal de detalle */
+.order-detail-card {
+  max-width: 660px;
+  max-height: 90vh;
+  overflow-y: auto;
+  gap: 24px;
+}
+
+.order-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 40px;
+}
+
+.order-detail-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.order-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.order-items-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-item-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 10px 14px 10px 10px;
+}
+
+.order-item-thumb {
+  width: 64px;
+  height: 56px;
+  flex-shrink: 0;
+  background: #FFFFFF;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.order-item-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.order-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.order-item-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.order-item-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.order-item-subtotal {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.order-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px dashed #CBD5E1;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-body);
+}
+
+.order-total-row strong {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+/* Logística (ERP) */
+.logistics-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #F5F3FF;
+  border: 1px solid #DDD6FE;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.logistics-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.logistics-courier {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #4C1D95;
+}
+
+.logistics-label {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6D28D9;
+}
+
+.logistics-tracking-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1E1B4B;
+  letter-spacing: 0.3px;
+}
+
+.logistics-meta {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #5B21B6;
+}
+
+.logistics-events {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #DDD6FE;
+  padding-top: 12px;
+}
+
+.logistics-event {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: #4C1D95;
+}
+
+.logistics-event-place {
+  color: #7C3AED;
+}
+
+.logistics-event-date {
+  color: #7C3AED;
+  white-space: nowrap;
+}
+
+.logistics-source {
+  font-size: 11.5px;
+  color: #7C3AED;
+}
+
+.logistics-empty {
+  background: var(--surface-subtle);
+  border: 1px dashed #CBD5E1;
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Línea de tiempo */
+.tracking-timeline {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.tracking-step {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding-bottom: 20px;
+}
+
+.tracking-step:last-child {
+  padding-bottom: 0;
+}
+
+.tracking-step::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-light);
+}
+
+.tracking-step:last-child::before {
+  display: none;
+}
+
+.tracking-step.done::before {
+  background: var(--lego-green);
+}
+
+.tracking-marker {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFFFFF;
+  border: 2px solid var(--border-light);
+  color: #FFFFFF;
+}
+
+.tracking-step.done .tracking-marker {
+  background: var(--lego-green);
+  border-color: var(--lego-green);
+}
+
+.tracking-step.current .tracking-marker {
+  border-color: var(--lego-yellow-dark);
+  background: var(--lego-yellow);
+}
+
+.tracking-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.tracking-step-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.tracking-step:not(.done):not(.current) .tracking-step-title {
+  color: var(--text-light);
+}
+
+.tracking-step-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.tracking-step-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+/* Reclamos */
+.claims-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.claims-head .order-section-title {
+  margin-bottom: 0;
+}
+
+.claim-open-btn {
+  background: var(--surface-card);
+  border: 1.5px solid var(--border-light);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 7px 14px;
+  border-radius: 12px;
+}
+
+.claim-open-btn:hover {
+  border-color: var(--lego-red);
+  color: var(--lego-red);
+  background: var(--lego-red-soft);
+}
+
+.claim-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.claim-textarea {
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.claim-counter {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: var(--text-light);
+}
+
+.claim-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.claim-actions .orders-primary-btn {
+  margin-top: 0;
+}
+
+.claim-cancel-btn {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.claim-cancel-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text-main);
+}
+
+.claims-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.claims-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.claim-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.claim-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-main);
+}
+
+.claim-item-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+
+.claim-item-date {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+@media (max-width: 640px) {
+  .orders-heading {
+    font-size: 28px;
+  }
+
+  .logistics-event {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

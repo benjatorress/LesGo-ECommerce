@@ -1,8 +1,8 @@
 import React from 'react';
-import { ShoppingCart, LogOut, Briefcase, User } from 'lucide-react';
+import { ShoppingCart, LogOut, Briefcase, User,   Package } from 'lucide-react';
 import type { Usuario } from '../services/api';
 
-export type ViewType = 'home' | 'catalog' | 'cart' | 'nosotros' | 'contacto';
+export type ViewType = 'home' | 'catalog' | 'cart' | 'nosotros' | 'contacto'| 'pedidos';
 
 interface NavbarProps {
   currentView: ViewType;
@@ -108,6 +108,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Briefcase size={16} />
                 <span>Módulo Ventas ERP</span>
+              </button>
+            )}
+
+            {/* Pedidos*/}
+            {currentUser.tipo === 'cliente' && (
+              <button
+                type="button"
+                className={`orders-nav-btn ${currentView === 'pedidos' ? 'active' : ''}`}
+                onClick={() => setCurrentView('pedidos')}
+              >
+                <Package size={15} />
+                <span>Mis Pedidos</span>
               </button>
             )}
 
