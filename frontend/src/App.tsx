@@ -12,6 +12,7 @@ import { VentasModal } from './components/VentasModal';
 import type { Product } from './data/products';
 import { getSession, clearSession, type Usuario } from './services/api';
 import { useCart } from './context/CartContext.tsx';
+import { OrdersView } from './components/OrdersView';
 import './App.css';
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
     setCurrentUser(null);
     setVentasModalOpen(false);
     showNotification('Has cerrado tu sesión.');
+    if (currentView === 'pedidos') setCurrentView('home');
   };
 
   const handleAddToCartWithNotification = (product: Product, quantity: number = 1) => {
@@ -166,6 +168,15 @@ export function App() {
           onClose={() => setSelectedProduct(null)}
           onAddToCart={handleAddToCartWithNotification}
           onBuyNow={handleBuyNow}
+        />
+      )}
+      {/* Vista de Pedidos para Usuarios Autenticados */}
+
+      {currentView === 'pedidos' && (
+        <OrdersView
+          currentUser={currentUser}
+          onOpenLogin={() => setAuthModal('login')}
+          onGoToCatalog={() => setCurrentView('catalog')}
         />
       )}
 
