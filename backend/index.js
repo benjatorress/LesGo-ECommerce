@@ -3,6 +3,7 @@ import cors from 'cors';
 import productosRoutes from './routes/productosRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import pedidosRoutes from './routes/pedidosRoutes.js';
+import carritoRoutes from './routes/carritoRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +30,8 @@ app.use('/api/productos', productosRoutes);
 app.use('/api/products', productosRoutes);
 
 app.use('/api/pedidos', pedidosRoutes);
+// Rutas de carrito
+app.use('/api/carrito', carritoRoutes);
 
 // Manejador para rutas no encontradas
 app.use((req, res) => {
@@ -43,4 +46,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📦 Endpoint de productos: http://localhost:${PORT}/api/productos`);
   console.log(`🔐 Endpoint de autenticación: http://localhost:${PORT}/api/auth/login`);
   console.log(`🧾 Endpoint de pedidos: http://localhost:${PORT}/api/pedidos/cliente/:id`);
+  console.log(`🛒 Endpoint de carrito: http://localhost:${PORT}/api/carrito`);
 });
