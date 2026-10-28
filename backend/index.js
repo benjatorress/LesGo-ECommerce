@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { pool } from './config/db.js';
 import productosRoutes from './routes/productosRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import pedidosRoutes from './routes/pedidosRoutes.js';
@@ -7,7 +8,30 @@ import carritoRoutes from './routes/carritoRoutes.js';
 import reclamosRoutes from './routes/reclamosRoutes.js';
 
 const app = express();
+
 const PORT = process.env.PORT || 5000;
+console.log({
+  host: process.env.DB_HOST,
+  db: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  port: process.env.DB_PORT,
+});
+try {
+  const result = await pool.query('SELECT NOW()');
+
+  console.log('✅ PostgreSQL conectado');
+  console.log(result.rows[0]);
+
+} catch (error) {
+
+  console.error('❌ Error conexión PostgreSQL');
+  console.error(error);
+
+}
+
+app.listen(3000, () => {
+  console.log('Servidor iniciado');
+});
 
 // Middlewares globales
 app.use(cors());
