@@ -9,14 +9,16 @@ import { createInventoryService } from './services/inventoryService.js';
 import { createOrderRepository } from './repositories/orderRepository.js';
 import { createCartRepository } from './repositories/cartRepository.js';
 import { createCrmAdapter } from './services/crmService.js';
+import { pedidoReadService } from './services/pedidosService.js';
 import { errorHandler } from './lib/errors.js';
 
-export function createApp({ inventory, orders, crm, carts } = {}) {
+export function createApp({ inventory, orders, crm, carts, pedidoReader } = {}) {
   const app = express();
   app.locals.inventory = inventory || createInventoryService();
   app.locals.orders = orders || createOrderRepository();
   app.locals.crm = crm || createCrmAdapter();
   app.locals.carts = carts || createCartRepository();
+  app.locals.pedidoReader = pedidoReader || pedidoReadService;
   app.use(cors());
   app.use(express.json({ limit: '64kb' }));
   app.get('/api/health', (req, res) => res.json({

@@ -5,6 +5,7 @@ import { createMockOrderRepository } from '../repositories/orderRepository.js';
 import { createPostgresOrderRepository } from '../repositories/postgresOrderRepository.js';
 import { createInventoryService } from '../services/inventoryService.js';
 import { createCrmAdapter } from '../services/crmService.js';
+import { createPedidoReadService } from '../services/pedidosService.js';
 import { createApp } from '../app.js';
 
 const customer = { id_cliente: 1, nombre: 'Cliente prueba', email: 'test@example.invalid' };
@@ -182,9 +183,93 @@ test('PostgreSQL simulado rechaza esquema desconocido y libera conexión sin esc
   assert.equal(queries.length, 1);
 });
 
+test('servicio de historial consulta pedidos y agrega cantidades de detalle', async () => {
+  let received;
+  const service = createPedidoReadService({
+    query: async (sql, params) => {
+      received = { sql, params };
+      return {
+        rows: [{
+          id_pedido: '8',
+          id_cliente: '4',
+          fecha_pedido: '2026-10-12',
+          monto_total: '25981.00',
+          estado: 'Pendiente',
+          total_items: '2'
+        }]
+      };
+    }
+  });
+
+  const rows = await service.listByCustomer(4);
+
+  assert.deepEqual(received.params, [4]);
+  assert.match(received.sql, /ecommerce_ventas\.ecom_pedido/);
+  assert.match(received.sql, /ecommerce_ventas\.ecom_detalle_pedido/);
+  assert.deepEqual(rows, [{
+    id_pedido: 8,
+    id_cliente: 4,
+    fecha_pedido: '2026-10-12',
+    monto_total: 25981,
+    estado: 'Pendiente',
+    total_items: 2,
+    crm_status: 'not_registered'
+  }]);
+});
+
+test('servicio de detalle verifica propiedad y normaliza líneas de ecom_detalle_pedido', async () => {
+  const queries = [];
+  const service = createPedidoReadService({
+    query: async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.includes('FROM ecommerce_ventas.ecom_pedido')) {
+        return {
+          rows: [{
+            id_pedido: '8',
+            id_cliente: '4',
+            fecha_pedido: '2026-10-12',
+            monto_total: '25981.00',
+            estado: 'Pendiente'
+          }]
+        };
+      }
+      return {
+        rows: [{
+          id_detalle_pedido: '12',
+          id_pedido: '8',
+          id_producto: '71',
+          cantidad: '2',
+          precio_unitario: '12990.50'
+        }]
+      };
+    }
+  });
+
+  const stored = await service.getByCustomerAndOrderId(4, 8);
+
+  assert.deepEqual(queries.map(query => query.params), [[4, 8], [8]]);
+  assert.match(queries[1].sql, /ecommerce_ventas\.ecom_detalle_pedido/);
+  assert.match(queries[1].sql, /id_detalle_ped AS id_detalle_pedido/);
+  assert.equal(stored.pedido.id_cliente, 4);
+  assert.deepEqual(stored.detalle, [{
+    id_detalle_pedido: 12,
+    id_pedido: 8,
+    id_producto: 71,
+    cantidad: 2,
+    precio_unitario: 12990.5
+  }]);
+});
+
 test('endpoints: sesión real emitida, POST/GET compartidos, acceso ajeno denegado', async t => {
   const deps = dependencies();
-  const app = createApp(deps);
+  const app = createApp({
+    ...deps,
+    pedidoReader: {
+      mode: 'mock',
+      listByCustomer: idCliente => deps.orders.list(idCliente),
+      getByCustomerAndOrderId: (idCliente, idPedido) => deps.orders.get(idCliente, idPedido)
+    }
+  });
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));

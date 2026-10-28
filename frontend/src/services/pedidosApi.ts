@@ -20,7 +20,7 @@ export interface PedidoResumen {
 export interface DetallePedidoItem {
   id_detalle_pedido: number;
   id_pedido: number;
-  id_producto: string;
+  id_producto: number | string;
   cantidad: number;
   precio_unitario: number;
   subtotal: number;
