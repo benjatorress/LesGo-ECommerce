@@ -17,6 +17,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 }) => {
   const [quantity, setQuantity] = useState(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
+  const [activeImage, setActiveImage] = useState(product.image);
+  const available = product.stock > 0;
 
   const handleAdd = () => {
     onAddToCart(product, quantity);
@@ -52,11 +54,31 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="detail-image-box">
               <span className="detail-theme-chip">{product.theme}</span>
               <img
-                src={product.image}
+                src={activeImage}
                 alt={product.name}
                 className="detail-product-img"
+                onError={event => {
+                  if (!event.currentTarget.src.endsWith('/product-placeholder.svg')) {
+                    event.currentTarget.src = '/product-placeholder.svg';
+                  }
+                }}
               />
             </div>
+
+            {product.images && product.images.length > 1 && (
+              <div className="detail-gallery">
+                {product.images.map((image, index) => (
+                  <button
+                    key={image}
+                    type="button"
+                    onClick={() => setActiveImage(image)}
+                    aria-label={`Ver imagen ${index + 1}`}
+                  >
+                    <img src={image} alt="" width={60} height={60} />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Ficha técnica rápida con bloques Lego */}
             <div className="detail-specs-grid">
@@ -74,7 +96,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
               <div className="detail-spec-item">
                 <span className="spec-label">Figuras</span>
-                <span className="spec-value">{product.minifigures || 3} minis</span>
+                <span className="spec-value">{product.minifigures ?? 'Sin información'}</span>
               </div>
             </div>
           </div>
@@ -85,11 +107,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <span className="detail-category-badge">{product.category}</span>
               <span className="detail-status-badge">
                 <Sparkles size={13} color="#10B981" />
-                <span>Disponible en Stock</span>
+                <span>{available ? `${product.stock} disponibles` : 'Sin stock'}</span>
               </span>
             </div>
 
             <h2 className="detail-product-title">{product.name}</h2>
+            {product.inventorySource === 'mock' && <p role="note">Inventario simulado · modo de desarrollo</p>}
 
             <div className="detail-price-row">
               <span className="detail-price-main">{product.formattedPrice}</span>
@@ -98,10 +121,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Descripción */}
             <p className="detail-description">
-              {product.description || 'Set original Lego con acabados premium y piezas selladas para coleccionistas.'}
+              {product.description || 'Descripción no disponible.'}
             </p>
 
             {/* Destacados / Highlights */}
+            {product.specifications && Object.keys(product.specifications).length > 0 && (
+              <dl>
+                {Object.entries(product.specifications).map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
             {product.highlights && product.highlights.length > 0 && (
               <div className="detail-highlights-box">
                 <span className="highlights-title">Puntos Clave del Set:</span>
@@ -133,7 +166,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <button
                     type="button"
                     className="detail-qty-btn"
-                    onClick={() => setQuantity((q) => q + 1)}
+                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                    disabled={!available || quantity >= product.stock}
                     aria-label="Sumar uno"
                   >
                     <Plus size={15} strokeWidth={2.6} />
@@ -146,6 +180,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   type="button"
                   className={`detail-add-cart-btn ${addedAnimation ? 'added' : ''}`}
                   onClick={handleAdd}
+                  disabled={!available}
                 >
                   {addedAnimation ? (
                     <>
@@ -164,6 +199,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   type="button"
                   className="detail-buy-now-btn"
                   onClick={handleBuy}
+                  disabled={!available}
                 >
                   <span>Comprar Ahora</span>
                   <ArrowRight size={17} />

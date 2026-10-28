@@ -1,4 +1,5 @@
 import { EMPLEADOS, CLIENTES } from '../data/usuariosData.js';
+import { issueSession } from '../services/sessionService.js';
 
 /**
  * Controlador de Inicio de Sesión
@@ -9,6 +10,12 @@ import { EMPLEADOS, CLIENTES } from '../data/usuariosData.js';
  * - 200: Autenticación exitosa con Token y datos de usuario
  */
 export const login = (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(503).json({
+      success: false,
+      message: 'Autenticación mock deshabilitada en producción.'
+    });
+  }
   const { email, password } = req.body || {};
 
   // Control 1: Validación de campos obligatorios
@@ -48,7 +55,7 @@ export const login = (req, res) => {
     }
 
     // Generar token de sesión simulado
-    const token = `lesgo_token_emp_${empleado.id_empleado}_${Date.now()}`;
+    const token = issueSession(empleado);
 
     // Respuesta exitosa (Empleado con acceso al Módulo de Ventas)
     return res.status(200).json({
@@ -98,7 +105,7 @@ export const login = (req, res) => {
       });
     }
 
-    const token = `lesgo_token_cli_${cliente.id_cliente}_${Date.now()}`;
+    const token = issueSession(cliente);
 
     // Respuesta exitosa (Cliente sin acceso al Módulo de Ventas del ERP)
     return res.status(200).json({

@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL, getSession } from './api';
+import type { CrearPedidoPayload } from './checkoutContract';
 
 export type EstadoPedido = 'recibida' | 'pagada' | 'enviada' | 'entregada';
 export type EstadoEnvio = 'en_transito' | 'en_reparto' | 'entregado';
@@ -10,6 +11,7 @@ export interface PedidoResumen {
   fecha_pedido: string; // YYYY-MM-DD
   monto_total: number;
   estado: EstadoPedido;
+  estado_dominio?: string;
   total_items: number;
   courier: string | null;
   numero_seguimiento: string | null;
@@ -79,7 +81,14 @@ export interface NuevoReclamo {
 async function request(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, init);
+    const token = getSession().token;
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
   } catch {
     throw new Error('No se pudo conectar con el servidor. Inténtalo nuevamente.');
   }
@@ -111,4 +120,25 @@ export async function crearReclamoApi(reclamo: NuevoReclamo): Promise<Reclamo> {
     body: JSON.stringify(reclamo)
   });
   return data.reclamo as Reclamo;
+}
+
+export interface CrearPedidoRespuesta {
+  success: boolean;
+  persistence: 'mock' | 'postgres';
+  replay: boolean;
+  pedido: PedidoResumen & { estado_dominio: 'Pendiente' };
+  crm: { mode: 'disabled' | 'mock' | 'http'; status: 'pending' | 'mock' | 'synced' };
+  message: string;
+}
+
+/** SCRUM-20: conservar la misma clave durante reintentos de una confirmación. No procesa pagos. */
+export async function crearPedidoApi(payload: CrearPedidoPayload, idempotencyKey: string): Promise<CrearPedidoRespuesta> {
+  return await request('/pedidos', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey
+    },
+    body: JSON.stringify(payload)
+  }) as unknown as CrearPedidoRespuesta;
 }

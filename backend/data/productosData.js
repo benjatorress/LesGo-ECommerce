@@ -1,3 +1,4 @@
+// Fixtures simulados de Inventario. Solo se usan cuando INVENTORY_MODE=mock.
 export const PRODUCTOS = [
   {
     id: 'lego-city-station',

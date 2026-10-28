@@ -3,6 +3,13 @@ import { Search, Plus, X, SlidersHorizontal, RotateCcw, Layers, Baby, Coins } fr
 import type { Product } from '../data/products';
 import { getProductosApi } from '../services/api';
 
+const piecePresets = [
+  { id: 'all', label: 'Cualquiera', min: 0, max: undefined },
+  { id: 'under300', label: '< 300 pcs', min: 0, max: 300 },
+  { id: '300to800', label: '300-800 pcs', min: 300, max: 800 },
+  { id: 'over800', label: '800+ pcs', min: 800, max: undefined }
+];
+
 interface CatalogViewProps {
   initialCategory?: string;
   onAddToCart?: (product: Product) => void;
@@ -31,6 +38,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   // Estado de productos y carga
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState('');
 
   const categories = [
     { id: 'all', label: 'Todos los Sets', color: '#E52521' },
@@ -39,13 +47,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     { id: 'Marvel', label: 'Marvel & DC', color: '#F59E0B' },
     { id: 'Ninjago', label: 'Lego Ninjago', color: '#EC4899' },
     { id: 'Especiales', label: 'Especiales', color: '#8B5CF6' }
-  ];
-
-  const piecePresets = [
-    { id: 'all', label: 'Cualquiera', min: 0, max: undefined },
-    { id: 'under300', label: '< 300 pcs', min: 0, max: 300 },
-    { id: '300to800', label: '300-800 pcs', min: 300, max: 800 },
-    { id: 'over800', label: '800+ pcs', min: 800, max: undefined }
   ];
 
   const ageOptions = [
@@ -58,7 +59,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   // Llamada a la API con todos los filtros combinados
   useEffect(() => {
     let isCancelled = false;
-    setLoading(true);
 
     const activePiecePreset = piecePresets.find(p => p.id === piecesPreset);
     let calculatedMinPieces: number | undefined = undefined;
@@ -72,6 +72,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
 
     const timer = setTimeout(() => {
+      setLoading(true);
+      setError('');
       getProductosApi({
         categoria: selectedCategory,
         min_precio: minPrice > 0 ? minPrice : undefined,
@@ -89,7 +91,11 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         })
         .catch((err) => {
           console.error('Error al cargar productos:', err);
-          if (!isCancelled) setLoading(false);
+          if (!isCancelled) {
+            setLoading(false);
+            setProducts([]);
+            setError('No se pudo consultar Inventario. Inténtalo más tarde.');
+          }
         });
     }, 180); // Debounce de 180ms para interactividad suave
 
@@ -338,6 +344,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* Área Central: Buscador, Badges de Filtros Activos y Grilla de Productos */}
       <main className="catalog-main">
+        {products.some(product => product.inventorySource === 'mock') && (
+          <p role="note">Inventario simulado · modo de desarrollo</p>
+        )}
         {/* Barra de Búsqueda Minimalista y Limpia */}
         <div className="search-bar-wrapper">
           <div className="search-bar">
@@ -400,7 +409,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
 
         {/* Grilla de Productos */}
-        {loading ? (
+        {error ? <p role="alert">{error}</p> : loading ? (
           <div className="catalog-empty-state">
             <div style={{ fontSize: '32px', marginBottom: '10px', animation: 'spin 1.5s infinite linear' }}>🧱</div>
             <p style={{ fontWeight: 700, fontSize: '16px', color: '#1E293B' }}>Filtrando catálogo en tiempo real...</p>
@@ -471,4 +480,3 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     </div>
   );
 };
-

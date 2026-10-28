@@ -184,9 +184,10 @@ export const CartView: React.FC<CartViewProps> = ({
               type="button"
               className="payment-action-btn"
               onClick={onCheckout}
+              disabled={cartItems.length === 0}
             >
               <CreditCard size={18} />
-              <span>Proceder al Pago</span>
+              <span>Revisar pedido</span>
               <ArrowRight size={16} />
             </button>
 

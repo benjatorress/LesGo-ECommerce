@@ -9,6 +9,9 @@ export interface Product {
   age: string;
   code: string;
   image: string;
+  images?: string[];
+  specifications?: Record<string, string | number>;
+  inventorySource?: 'mock' | 'http';
   description?: string;
   minifigures?: number;
   highlights?: string[];

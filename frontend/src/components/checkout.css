@@ -1,0 +1,8 @@
+.checkout-view { display: grid; gap: 20px; }
+.checkout-fields { display: grid; gap: 16px; padding: 24px; }
+.checkout-fields label { display: grid; gap: 8px; font-weight: 600; color: #334155; }
+.checkout-fields input, .checkout-fields select, .checkout-fields textarea { padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; width: 100%; }
+.checkout-summary-item { display: grid; gap: 8px; margin: 20px 0; }
+.checkout-view .payment-summary-card p { margin: 16px 0; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+.detail-gallery { display: flex; gap: 8px; flex-wrap: wrap; }

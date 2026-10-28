@@ -1,7 +1,7 @@
-import { PEDIDOS, DETALLE_PEDIDO } from '../data/pedidosData.js';
 import { PRODUCTOS } from '../data/productosData.js';
 import { getEnvioPorPedido } from '../data/logisticaData.js';
 import { RECLAMOS } from '../data/reclamosData.js';
+import { createOrder, visualOrder } from '../services/orderService.js';
 
 // Pasos del seguimiento visible para el cliente
 const PASOS = [
@@ -47,7 +47,7 @@ const ordenarRecientesPrimero = (a, b) =>
  * Lista los pedidos del cliente (más recientes primero), con el N° de seguimiento
  * de Logística cuando el pedido ya fue enviado.
  */
-export const getPedidosById = (req, res) => {
+export const getPedidosById = async (req, res) => {
   const idCliente = parseId(req.params.id);
 
   if (idCliente === null) {
@@ -57,16 +57,23 @@ export const getPedidosById = (req, res) => {
     });
   }
 
-  const pedidos = PEDIDOS
-    .filter((pedido) => pedido.id_cliente === idCliente)
+  if (idCliente !== req.customer.id_cliente) {
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes acceso a los pedidos de otro cliente.'
+    });
+  }
+  const repository = req.app.locals.orders;
+  const rows = await repository.list(idCliente);
+  const pedidos = rows
     .sort(ordenarRecientesPrimero)
-    .map((pedido) => {
-      const envio = getEnvioPorPedido(pedido.id_pedido);
+    .map(({ crm_status, has_crm_event, ...pedido }) => {
+      const envio = repository.mode === 'mock' && !has_crm_event
+        ? getEnvioPorPedido(pedido.id_pedido)
+        : null;
       return {
-        ...pedido,
-        total_items: DETALLE_PEDIDO
-          .filter((d) => d.id_pedido === pedido.id_pedido)
-          .reduce((acc, d) => acc + d.cantidad, 0),
+        ...visualOrder(pedido),
+        crm: { status: crm_status },
         courier: envio?.courier ?? null,
         numero_seguimiento: envio?.numero_seguimiento ?? null
       };
@@ -74,6 +81,7 @@ export const getPedidosById = (req, res) => {
 
   return res.json({
     success: true,
+    persistence: repository.mode,
     total: pedidos.length,
     pedidos
   });
@@ -84,7 +92,7 @@ export const getPedidosById = (req, res) => {
  * Detalle del pedido + seguimiento + datos de Logística (ERP) + reclamos del pedido.
  * Si el pedido pertenece a otro cliente responde 404.
  */
-export const getPedidoDetalle = (req, res) => {
+export const getPedidoDetalle = async (req, res) => {
   const idCliente = parseId(req.params.idCliente);
   const idPedido = parseId(req.params.idPedido);
 
@@ -95,9 +103,15 @@ export const getPedidoDetalle = (req, res) => {
     });
   }
 
-  const pedido = PEDIDOS.find(
-    (p) => p.id_pedido === idPedido && p.id_cliente === idCliente
-  );
+  if (idCliente !== req.customer.id_cliente) {
+    return res.status(403).json({
+      success: false,
+      message: 'No tienes acceso a los pedidos de otro cliente.'
+    });
+  }
+  const repository = req.app.locals.orders;
+  const stored = await repository.get(idCliente, idPedido);
+  const pedido = stored?.pedido;
 
   if (!pedido) {
     return res.status(404).json({
@@ -106,25 +120,27 @@ export const getPedidoDetalle = (req, res) => {
     });
   }
 
-  const detalle = DETALLE_PEDIDO
-    .filter((d) => d.id_pedido === pedido.id_pedido)
+  const detalle = stored.detalle
     .map((d) => {
-      const producto = PRODUCTOS.find((p) => p.id === d.id_producto);
+      const snapshot = stored.event?.payload?.productos?.find(p => p.id_producto === d.id_producto);
+      const producto = repository.mode === 'mock' ? PRODUCTOS.find((p) => p.id === d.id_producto) : null;
       return {
         ...d,
-        nombre: producto?.name ?? 'Producto no disponible',
-        codigo: producto?.code ?? '-',
-        imagen: producto?.image ?? '',
+        nombre: snapshot?.nombre ?? producto?.name ?? 'Producto no disponible',
+        codigo: snapshot?.codigo ?? producto?.code ?? '-',
+        imagen: snapshot?.imagen ?? producto?.image ?? '',
         subtotal: d.cantidad * d.precio_unitario
       };
     });
 
-  const envio = getEnvioPorPedido(pedido.id_pedido);
+  const envio = repository.mode === 'mock' && !stored.event ? getEnvioPorPedido(pedido.id_pedido) : null;
 
   return res.json({
     success: true,
+    persistence: repository.mode,
     pedido: {
-      ...pedido,
+      ...visualOrder(pedido),
+      crm: { status: stored.event?.status ?? 'not_registered' },
       total_items: detalle.reduce((acc, d) => acc + d.cantidad, 0),
       courier: envio?.courier ?? null,
       numero_seguimiento: envio?.numero_seguimiento ?? null,
@@ -141,9 +157,39 @@ export const getPedidoDetalle = (req, res) => {
             eventos: envio.eventos
           }
         : null,
-      reclamos: RECLAMOS
+      reclamos: (repository.mode === 'mock' && !stored.event ? RECLAMOS : [])
         .filter((r) => r.id_pedido === pedido.id_pedido)
         .sort((a, b) => b.id_reclamo - a.id_reclamo)
     }
+  });
+};
+
+export const postPedido = async (req, res) => {
+  const { inventory, orders, crm } = req.app.locals;
+  const result = await createOrder({
+    body: req.body,
+    customer: req.customer,
+    key: req.get('Idempotency-Key'),
+    inventory,
+    orders,
+    crm
+  });
+  const message = result.crmStatus === 'pending'
+    ? 'Pedido creado en estado Pendiente. Sincronización CRM pendiente; no se ha procesado ningún pago.'
+    : 'Pedido creado en estado Pendiente; no se ha procesado ningún pago.';
+
+  res.status(result.replay ? 200 : 201).json({
+    success: true,
+    persistence: orders.mode,
+    replay: !!result.replay,
+    pedido: {
+      ...visualOrder(result.pedido),
+      detalle: result.detalle,
+      total_items: result.detalle.reduce((sum, line) => sum + line.cantidad, 0),
+      courier: null,
+      numero_seguimiento: null
+    },
+    crm: { mode: crm.mode, status: result.crmStatus },
+    message
   });
 };

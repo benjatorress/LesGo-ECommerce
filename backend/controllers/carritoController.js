@@ -1,8 +1,7 @@
 import { CARRITOS_DB } from '../data/carritoData.js';
-import { PRODUCTOS } from '../data/productosData.js';
 
-export const syncCart = (req, res) => {
-  const { usuarioId, items } = req.body;
+export const syncCart = async (req, res) => {
+  const { usuarioId, items } = req.body || {};
 
   // Validación de usuario
   if (!usuarioId) {
@@ -22,18 +21,16 @@ export const syncCart = (req, res) => {
 
   // Validación de stock para cada producto en el carrito
   for (const item of items) {
+    if (!item?.product?.id || !Number.isSafeInteger(item.quantity) || item.quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Producto o cantidad inválidos.'
+      });
+    }
     const productoSolicitado = item.product;
     const cantidadSolicitada = item.quantity;
 
-    // Buscamos el producto real en la base de datos
-    const productoEnInventario = PRODUCTOS.find(p => p.id === productoSolicitado.id);
-
-    if (!productoEnInventario) {
-      return res.status(404).json({
-        success: false,
-        message: `El producto con ID "${productoSolicitado.id}" no existe en el catálogo.`
-      });
-    }
+    const productoEnInventario = await req.app.locals.inventory.get(productoSolicitado.id);
 
     // Comparamos la cantidad solicitada con el stock disponible
     // (Usamos un fallback de 0 por seguridad si a algún producto le falta el campo)

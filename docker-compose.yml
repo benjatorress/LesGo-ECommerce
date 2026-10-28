@@ -9,6 +9,9 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=development
+      - INVENTORY_MODE=mock
+      - ORDER_REPOSITORY=mock
+      - CRM_MODE=disabled
     volumes:
       - ./backend:/app
       - /app/node_modules

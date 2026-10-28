@@ -1,6 +1,6 @@
 import { PRODUCTS, type Product } from '../data/products';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export interface FilterParams {
   categoria?: string;
@@ -16,7 +16,7 @@ export interface ApiResponse {
   success: boolean;
   total: number;
   productos: Product[];
-  filtrosAplicados?: Record<string, any>;
+  filtrosAplicados?: Record<string, unknown>;
 }
 
 export interface ProductDetailResponse {
@@ -24,10 +24,55 @@ export interface ProductDetailResponse {
   producto: Product;
 }
 
+function getLocalProducts(filters: FilterParams): Product[] {
+  const category = filters.categoria?.trim().toLowerCase();
+  const search = filters.search?.trim().toLowerCase();
+  const age = filters.edad?.trim().toLowerCase();
+  const ageGroups: Record<string, string[]> = {
+    kids: ['5', '7', '8'],
+    teens: ['10', '12'],
+    adults: ['16', '18']
+  };
+
+  return PRODUCTS.filter(product => {
+    if (category && category !== 'all' && category !== 'todos' &&
+        !product.category.toLowerCase().includes(category) &&
+        !product.theme.toLowerCase().includes(category)) {
+      return false;
+    }
+    if (filters.min_precio !== undefined && product.price < filters.min_precio) return false;
+    if (filters.max_precio !== undefined && product.price > filters.max_precio) return false;
+    if (filters.min_piezas !== undefined && product.pieces < filters.min_piezas) return false;
+    if (filters.max_piezas !== undefined && product.pieces > filters.max_piezas) return false;
+
+    if (age && age !== 'all') {
+      const acceptedAges = ageGroups[age] || [age];
+      if (!acceptedAges.some(value => product.age.toLowerCase().includes(value))) {
+        return false;
+      }
+    }
+    if (search) {
+      const searchableFields = [product.name, product.theme, product.category, product.code];
+      if (!searchableFields.some(value => value.toLowerCase().includes(search))) {
+        return false;
+      }
+    }
+    return true;
+  }).map(product => ({ ...product, inventorySource: 'mock' }));
+}
+
 /**
- * Consulta el endpoint GET /api/productos con soporte de filtros
+ * Catálogo local por defecto; VITE_CATALOG_SOURCE=api consulta GET /api/productos.
  */
 export async function getProductosApi(filters: FilterParams = {}): Promise<Product[]> {
+  const source = import.meta.env.VITE_CATALOG_SOURCE || 'local';
+  if (source === 'local') {
+    return getLocalProducts(filters);
+  }
+  if (source !== 'api') {
+    throw new Error('VITE_CATALOG_SOURCE debe ser local o api.');
+  }
+
   const queryParams = new URLSearchParams();
 
   if (filters.categoria && filters.categoria !== 'all') {
@@ -63,69 +108,29 @@ export async function getProductosApi(filters: FilterParams = {}): Promise<Produ
     if (data.success && Array.isArray(data.productos)) {
       return data.productos;
     }
-    return data.productos || [];
+    throw new Error('Respuesta de catálogo inválida.');
   } catch (error) {
-    console.warn('No se pudo conectar con el backend en', url, 'usando filtrado local de respaldo:', error);
-    
-    // Respaldo resiliente en frontend si el servidor no responde
-    return PRODUCTS.filter((prod) => {
-      if (filters.categoria && filters.categoria !== 'all') {
-        const cat = filters.categoria.toLowerCase();
-        if (!prod.category.toLowerCase().includes(cat) && !prod.theme.toLowerCase().includes(cat)) {
-          return false;
-        }
-      }
-      if (filters.min_precio !== undefined && prod.price < filters.min_precio) {
-        return false;
-      }
-      if (filters.max_precio !== undefined && prod.price > filters.max_precio) {
-        return false;
-      }
-      if (filters.min_piezas !== undefined && prod.pieces < filters.min_piezas) {
-        return false;
-      }
-      if (filters.max_piezas !== undefined && prod.pieces > filters.max_piezas) {
-        return false;
-      }
-      if (filters.edad && filters.edad !== 'all') {
-        const prodAge = prod.age.toLowerCase();
-        if (filters.edad === 'kids' && !prodAge.includes('5') && !prodAge.includes('7') && !prodAge.includes('8')) {
-          return false;
-        } else if (filters.edad === 'teens' && !prodAge.includes('10') && !prodAge.includes('12')) {
-          return false;
-        } else if (filters.edad === 'adults' && !prodAge.includes('16') && !prodAge.includes('18')) {
-          return false;
-        } else if (filters.edad !== 'kids' && filters.edad !== 'teens' && filters.edad !== 'adults' && !prodAge.includes(filters.edad)) {
-          return false;
-        }
-      }
-      if (filters.search && filters.search.trim()) {
-        const s = filters.search.toLowerCase();
-        if (!prod.name.toLowerCase().includes(s) && !prod.theme.toLowerCase().includes(s)) {
-          return false;
-        }
-      }
-      return true;
-    });
+    throw new Error(error instanceof Error ? error.message : 'No se pudo cargar el catálogo.', { cause: error });
   }
 }
 
 /**
  * Consulta el detalle de un producto por ID o código GET /api/productos/:id
  */
-export async function getProductoByIdApi(id: string): Promise<Product | null> {
-  const url = `${API_BASE_URL}/productos/${id}`;
+export async function getProductoByIdApi(id: string, signal?: AbortSignal): Promise<Product | null> {
+  const url = `${API_BASE_URL}/productos/${encodeURIComponent(id)}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal });
+    if (res.status === 404) return null;
     if (!res.ok) {
       throw new Error(`Error HTTP: ${res.status}`);
     }
     const data: ProductDetailResponse = await res.json();
-    return data.producto || null;
+    if (!data.success || !data.producto) throw new Error('Detalle de producto inválido.');
+    return data.producto;
   } catch (error) {
-    console.warn('Error al consultar producto por ID en el backend, usando fallback local:', error);
-    return PRODUCTS.find((p) => p.id === id || p.code === id) || null;
+    throw new Error(error instanceof Error ? error.message : 'No se pudo cargar el producto.', { cause: error });
   }
 }
 
@@ -250,6 +255,13 @@ export async function loginApi(credentials: LoginCredentials): Promise<AuthRespo
       statusHttp: response.status
     };
   } catch (error) {
+    if (import.meta.env.VITE_AUTH_OFFLINE_DEMO !== 'true') {
+      return {
+        success: false,
+        message: 'No se pudo conectar con el servidor de autenticación.',
+        reason: 'network_error'
+      };
+    }
     console.warn('Fallo de conexión con backend al iniciar sesión, evaluando respaldo local:', error);
     
     // Fallback de contingencia frontend con la misma lógica si el backend no está disponible
@@ -353,4 +365,3 @@ export async function solicitarCambioPasswordApi(email: string): Promise<{ succe
     };
   }
 }
-

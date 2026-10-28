@@ -16,6 +16,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 }) => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -28,7 +29,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         }
       })
       .catch(() => {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setError('No se pudo consultar Inventario. Inténtalo más tarde.');
+        }
       });
     return () => {
       isMounted = false;
@@ -44,6 +48,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="home-view-container">
+      {error && <p role="alert">{error}</p>}
+      {featuredProducts.some(product => product.inventorySource === 'mock') && (
+        <p role="note">Inventario simulado · modo de desarrollo</p>
+      )}
       {/* Hero Section */}
       <section className="home-hero-section">
         <div className="hero-content">

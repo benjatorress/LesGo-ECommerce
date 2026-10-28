@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Navbar, type ViewType } from './components/Navbar';
+import { useState } from 'react';
+import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
 import { CartView } from './components/CartView';
 import { AboutView } from './components/AboutView';
 import { ContactView } from './components/ContactView';
-import { ProductDetailModal } from './components/ProductDetailModal';
+import { ProductDetailLoader } from './components/ProductDetailLoader';
+import { CheckoutView } from './components/CheckoutView';
+import { useNavigation } from './services/navigation';
 import { AuthModal } from './components/AuthModal';
 import { InfoModal } from './components/InfoModal';
 import { VentasModal } from './components/VentasModal';
@@ -16,25 +18,17 @@ import { OrdersView } from './components/OrdersView';
 import './App.css';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('home');
+  const { view: currentView, productId, navigate: setCurrentView, closeProduct } = useNavigation();
   const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [infoModal, setInfoModal] = useState<'nosotros' | 'contacto' | null>(null);
   const [ventasModalOpen, setVentasModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   // Estado de usuario autenticado (cargado de LocalStorage si existe)
-  const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
+  const [currentUser, setCurrentUser] = useState<Usuario | null>(() => getSession().usuario);
 
   const { cartItems, totalItems, addToCart, updateQuantity, removeItem } = useCart();
-
-  useEffect(() => {
-    const session = getSession();
-    if (session.usuario) {
-      setCurrentUser(session.usuario);
-    }
-  }, []);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -43,7 +37,7 @@ export function App() {
     }, 3200);
   };
 
-  const handleLoginSuccess = (usuario: Usuario, _token: string) => {
+  const handleLoginSuccess = (usuario: Usuario) => {
     setCurrentUser(usuario);
     if (usuario.tipo === 'empleado') {
       showNotification(`¡Bienvenido(a) ${usuario.nombre}! Acceso habilitado al Módulo de Ventas ERP.`);
@@ -67,7 +61,6 @@ export function App() {
 
   const handleBuyNow = (product: Product, quantity: number = 1) => {
     handleAddToCartWithNotification(product, quantity);
-    setSelectedProduct(null);
     setCurrentView('cart');
   };
 
@@ -77,7 +70,7 @@ export function App() {
   };
 
   const handleCheckout = () => {
-    showNotification('Redirigiendo a pasarela segura de pago VISA...');
+    if (cartItems.length) setCurrentView('checkout');
   };
 
   const handleNavigateToCatalog = (category?: string) => {
@@ -131,7 +124,7 @@ export function App() {
           <HomeView
             onNavigateToCatalog={handleNavigateToCatalog}
             onAddToCart={handleAddToCartWithNotification}
-            onSelectProduct={(product) => setSelectedProduct(product)}
+            onSelectProduct={(product) => setCurrentView(currentView, product.id)}
           />
         )}
 
@@ -139,7 +132,7 @@ export function App() {
           <CatalogView
             initialCategory={selectedCatalogCategory}
             onAddToCart={handleAddToCartWithNotification}
-            onSelectProduct={(product) => setSelectedProduct(product)}
+            onSelectProduct={(product) => setCurrentView(currentView, product.id)}
           />
         )}
 
@@ -156,15 +149,18 @@ export function App() {
           <AboutView onGoToCatalog={() => setCurrentView('catalog')} />
         )}
 
+        {currentView === 'checkout' && <CheckoutView onBack={() => setCurrentView('cart')} />}
+
         {currentView === 'contacto' && (
           <ContactView />
         )}
 
         {/* Vista de Detalle de Producto al hacer clic en un set */}
-        {selectedProduct && (
-          <ProductDetailModal
-            product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
+        {productId && (
+          <ProductDetailLoader
+            key={productId}
+            id={productId}
+            onClose={closeProduct}
             onAddToCart={handleAddToCartWithNotification}
             onBuyNow={handleBuyNow}
           />

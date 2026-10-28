@@ -1,5 +1,3 @@
-import { PRODUCTOS } from '../data/productosData.js';
-
 /**
  * Controlador para obtener productos con filtros:
  * - categoria (o category)
@@ -11,7 +9,7 @@ import { PRODUCTOS } from '../data/productosData.js';
  * - search (o q)
  * - orden (precio_asc, precio_desc, nombre, piezas)
  */
-export const getProductos = (req, res) => {
+export const getProductos = async (req, res, next) => {
   try {
     const {
       categoria,
@@ -36,7 +34,8 @@ export const getProductos = (req, res) => {
     const targetEdad = (edad || '').trim().toLowerCase();
     const searchQuery = (search || q || '').trim().toLowerCase();
 
-    let resultado = PRODUCTOS.filter((prod) => {
+    const productos = await req.app.locals.inventory.list();
+    let resultado = productos.filter((prod) => {
       // Filtro por categoría (soporta 'all' o 'todos' para traer todo)
       if (targetCategory && targetCategory !== 'all' && targetCategory !== 'todos') {
         const matchesCategory =
@@ -105,6 +104,7 @@ export const getProductos = (req, res) => {
 
     return res.json({
       success: true,
+      source: req.app.locals.inventory.mode,
       total: resultado.length,
       filtrosAplicados: {
         categoria: targetCategory || null,
@@ -119,40 +119,24 @@ export const getProductos = (req, res) => {
       productos: resultado
     });
   } catch (error) {
-    console.error('Error al obtener productos:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor al procesar los productos',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 /**
  * Controlador para obtener un producto por ID
  */
-export const getProductoById = (req, res) => {
+export const getProductoById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const producto = PRODUCTOS.find((p) => p.id === id || p.code === id);
-
-    if (!producto) {
-      return res.status(404).json({
-        success: false,
-        message: `Producto con ID o Código "${id}" no encontrado.`
-      });
-    }
+    const producto = await req.app.locals.inventory.get(id);
 
     return res.json({
       success: true,
+      source: req.app.locals.inventory.mode,
       producto
     });
   } catch (error) {
-    console.error('Error al buscar producto:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error al buscar el producto',
-      error: error.message
-    });
+    next(error);
   }
 };

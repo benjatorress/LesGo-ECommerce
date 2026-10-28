@@ -19,4 +19,10 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/context/CartContext.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['useCart'] }],
+    },
+  },
 ])

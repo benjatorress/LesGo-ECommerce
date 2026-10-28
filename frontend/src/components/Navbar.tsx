@@ -2,7 +2,7 @@ import React from 'react';
 import { ShoppingCart, LogOut, Briefcase, User,   Package } from 'lucide-react';
 import type { Usuario } from '../services/api';
 
-export type ViewType = 'home' | 'catalog' | 'cart' | 'nosotros' | 'contacto'| 'pedidos';
+export type ViewType = 'home' | 'catalog' | 'cart' | 'checkout' | 'nosotros' | 'contacto' | 'pedidos';
 
 interface NavbarProps {
   currentView: ViewType;
