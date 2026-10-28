@@ -1,76 +1,8 @@
-import express from 'express';
-import cors from 'cors';
-import { pool } from './config/db.js';
-import productosRoutes from './routes/productosRoutes.js';
-import authRoutes from './routes/authRoutes.js';
-import pedidosRoutes from './routes/pedidosRoutes.js';
-import carritoRoutes from './routes/carritoRoutes.js';
-import reclamosRoutes from './routes/reclamosRoutes.js';
+import { createApp } from './app.js';
 
-const app = express();
+const port = Number(process.env.PORT) || 5000;
+const app = createApp();
 
-const PORT = process.env.PORT || 5000;
-console.log({
-  host: process.env.DB_HOST,
-  db: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  port: process.env.DB_PORT,
-});
-try {
-  const result = await pool.query('SELECT NOW()');
-
-  console.log('✅ PostgreSQL conectado');
-  console.log(result.rows[0]);
-
-} catch (error) {
-
-  console.error('❌ Error conexión PostgreSQL');
-  console.error(error);
-
-}
-
-app.listen(3000, () => {
-  console.log('Servidor iniciado');
-});
-
-// Middlewares globales
-app.use(cors());
-app.use(express.json());
-
-// Endpoint de verificación de salud
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'LesGo E-Commerce Backend API',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Rutas de autenticación
-app.use('/api/auth', authRoutes);
-
-// Rutas de productos (soporta tanto /api/productos como /api/products)
-app.use('/api/productos', productosRoutes);
-app.use('/api/products', productosRoutes);
-
-app.use('/api/pedidos', pedidosRoutes);
-// Rutas de carrito
-app.use('/api/carrito', carritoRoutes);
-//reclamos
-app.use('/api/reclamos', reclamosRoutes);
-// Manejador para rutas no encontradas
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Ruta no encontrada: ${req.method} ${req.originalUrl}`
-  });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor LesGo Backend ejecutándose en http://localhost:${PORT}`);
-  console.log(`📦 Endpoint de productos: http://localhost:${PORT}/api/productos`);
-  console.log(`🔐 Endpoint de autenticación: http://localhost:${PORT}/api/auth/login`);
-  console.log(`🧾 Endpoint de pedidos: http://localhost:${PORT}/api/pedidos/cliente/:id`);
-  console.log(`🛒 Endpoint de carrito: http://localhost:${PORT}/api/carrito`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Servidor LesGo Backend ejecutándose en http://localhost:${port}`);
 });

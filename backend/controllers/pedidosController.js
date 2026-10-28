@@ -63,17 +63,22 @@ export const getPedidosById = async (req, res) => {
       message: 'No tienes acceso a los pedidos de otro cliente.'
     });
   }
-  const repository = req.app.locals.orders;
-  const rows = await repository.list(idCliente);
+  const pedidoReader = req.app.locals.pedidoReader;
+  const rows = await pedidoReader.listByCustomer(idCliente);
+  const mockMetadata = req.app.locals.orders.mode === 'mock'
+    ? await req.app.locals.orders.list(idCliente)
+    : [];
+  const metadataByOrder = new Map(mockMetadata.map(pedido => [pedido.id_pedido, pedido]));
   const pedidos = rows
     .sort(ordenarRecientesPrimero)
     .map(({ crm_status, has_crm_event, ...pedido }) => {
-      const envio = repository.mode === 'mock' && !has_crm_event
+      const metadata = metadataByOrder.get(pedido.id_pedido);
+      const envio = !(metadata?.has_crm_event ?? has_crm_event)
         ? getEnvioPorPedido(pedido.id_pedido)
         : null;
       return {
         ...visualOrder(pedido),
-        crm: { status: crm_status },
+        crm: { status: metadata?.crm_status ?? crm_status ?? 'not_registered' },
         courier: envio?.courier ?? null,
         numero_seguimiento: envio?.numero_seguimiento ?? null
       };
@@ -81,7 +86,7 @@ export const getPedidosById = async (req, res) => {
 
   return res.json({
     success: true,
-    persistence: repository.mode,
+    persistence: pedidoReader.mode,
     total: pedidos.length,
     pedidos
   });
@@ -110,8 +115,11 @@ export const getPedidoDetalle = async (req, res) => {
     });
   }
   const repository = req.app.locals.orders;
-  const stored = await repository.get(idCliente, idPedido);
+  const stored = await req.app.locals.pedidoReader.getByCustomerAndOrderId(idCliente, idPedido);
   const pedido = stored?.pedido;
+  const mockStored = repository.mode === 'mock'
+    ? await repository.get(idCliente, idPedido)
+    : null;
 
   if (!pedido) {
     return res.status(404).json({
@@ -122,25 +130,26 @@ export const getPedidoDetalle = async (req, res) => {
 
   const detalle = stored.detalle
     .map((d) => {
-      const snapshot = stored.event?.payload?.productos?.find(p => p.id_producto === d.id_producto);
+      const snapshot = mockStored?.event?.payload?.productos?.find(p => p.id_producto === d.id_producto);
       const producto = repository.mode === 'mock' ? PRODUCTOS.find((p) => p.id === d.id_producto) : null;
       return {
         ...d,
-        nombre: snapshot?.nombre ?? producto?.name ?? 'Producto no disponible',
+        nombre: snapshot?.nombre ?? producto?.name ??
+          (typeof d.id_producto === 'number' ? `Producto #${d.id_producto}` : 'Producto no disponible'),
         codigo: snapshot?.codigo ?? producto?.code ?? '-',
-        imagen: snapshot?.imagen ?? producto?.image ?? '',
+        imagen: snapshot?.imagen ?? producto?.image ?? '/product-placeholder.svg',
         subtotal: d.cantidad * d.precio_unitario
       };
     });
 
-  const envio = repository.mode === 'mock' && !stored.event ? getEnvioPorPedido(pedido.id_pedido) : null;
+  const envio = !mockStored?.event ? getEnvioPorPedido(pedido.id_pedido) : null;
 
   return res.json({
     success: true,
-    persistence: repository.mode,
+    persistence: req.app.locals.pedidoReader.mode,
     pedido: {
       ...visualOrder(pedido),
-      crm: { status: stored.event?.status ?? 'not_registered' },
+      crm: { status: mockStored?.event?.status ?? 'not_registered' },
       total_items: detalle.reduce((acc, d) => acc + d.cantidad, 0),
       courier: envio?.courier ?? null,
       numero_seguimiento: envio?.numero_seguimiento ?? null,
@@ -157,7 +166,7 @@ export const getPedidoDetalle = async (req, res) => {
             eventos: envio.eventos
           }
         : null,
-      reclamos: (repository.mode === 'mock' && !stored.event ? RECLAMOS : [])
+      reclamos: (mockStored?.event ? [] : RECLAMOS)
         .filter((r) => r.id_pedido === pedido.id_pedido)
         .sort((a, b) => b.id_reclamo - a.id_reclamo)
     }
