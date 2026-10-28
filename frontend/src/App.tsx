@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { CatalogView } from './components/CatalogView';
@@ -12,7 +12,7 @@ import { AuthModal } from './components/AuthModal';
 import { InfoModal } from './components/InfoModal';
 import { VentasModal } from './components/VentasModal';
 import type { Product } from './data/products';
-import { getSession, clearSession, type Usuario } from './services/api';
+import { getSession, clearSession, getCarritoApi, type Usuario } from './services/api';
 import { useCart } from './context/CartContext.tsx';
 import { OrdersView } from './components/OrdersView';
 import './App.css';
@@ -28,7 +28,7 @@ export function App() {
   // Estado de usuario autenticado (cargado de LocalStorage si existe)
   const [currentUser, setCurrentUser] = useState<Usuario | null>(() => getSession().usuario);
 
-  const { cartItems, totalItems, addToCart, updateQuantity, removeItem } = useCart();
+  const { cartItems, totalItems, addToCart, updateQuantity, removeItem, replaceCart, clearCart } = useCart();
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -36,6 +36,23 @@ export function App() {
       setNotification(null);
     }, 3200);
   };
+
+  // Los clientes autenticados ven el carrito guardado en la base de datos
+  const customerId = currentUser?.tipo === 'cliente' ? currentUser.id_cliente : undefined;
+  useEffect(() => {
+    const token = getSession().token;
+    if (customerId === undefined || !token) return;
+    const controller = new AbortController();
+    getCarritoApi(token, controller.signal)
+      .then(replaceCart)
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        console.warn('No se pudo cargar el carrito guardado:', error);
+        showNotification('No se pudo cargar tu carrito guardado.');
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
 
   const handleLoginSuccess = (usuario: Usuario) => {
     setCurrentUser(usuario);
@@ -48,6 +65,7 @@ export function App() {
 
   const handleLogout = () => {
     clearSession();
+    clearCart();
     setCurrentUser(null);
     setVentasModalOpen(false);
     showNotification('Has cerrado tu sesión.');

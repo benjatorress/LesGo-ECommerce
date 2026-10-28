@@ -1,4 +1,40 @@
 import { CARRITOS_DB } from '../data/carritoData.js';
+import { MAX_QUANTITY_PER_LINE } from '../repositories/cartRepository.js';
+
+
+/**
+ * GET /api/carrito
+ * Devuelve el carrito guardado en la BD para el cliente de la sesión.
+ */
+export const getCart = async (req, res) => {
+  const { carrito, items, omitidos } = await req.app.locals.carts.getByCustomer(req.customer.id_cliente);
+  return res.json({ success: true, carrito, items, omitidos });
+};
+
+/**
+ * PATCH /api/carrito/items/:idProducto  { cantidad }
+ * Guarda en la BD la nueva cantidad de un producto del carrito del cliente de la sesión.
+ */
+export const updateCartItem = async (req, res) => {
+  const { idProducto } = req.params;
+  const { cantidad } = req.body || {};
+
+  if (!idProducto.trim() || idProducto.length > 200) {
+    return res.status(400).json({ success: false, message: 'Identificador de producto inválido.' });
+  }
+  if (!Number.isSafeInteger(cantidad) || cantidad < 1 || cantidad > MAX_QUANTITY_PER_LINE) {
+    return res.status(400).json({
+      success: false,
+      message: `La cantidad debe ser un entero entre 1 y ${MAX_QUANTITY_PER_LINE}.`
+    });
+  }
+
+  const item = await req.app.locals.carts.updateQuantity(req.customer.id_cliente, idProducto, cantidad);
+  if (!item) {
+    return res.status(404).json({ success: false, message: 'El producto no está en tu carrito guardado.' });
+  }
+  return res.json({ success: true, item });
+};
 
 export const syncCart = async (req, res) => {
   const { usuarioId, items } = req.body || {};

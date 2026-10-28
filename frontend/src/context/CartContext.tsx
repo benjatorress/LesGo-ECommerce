@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product, CartItem } from '../data/products';
+import { getSession, updateCarritoItemApi } from '../services/api';
 
 interface CartContextType {
   cartItems: CartItem[];
@@ -7,6 +8,7 @@ interface CartContextType {
   updateQuantity: (productId: string, delta: number) => void;
   removeItem: (productId: string) => void;
   clearCart: () => void;
+  replaceCart: (items: CartItem[]) => void;
   totalItems: number;
   toastMessage: string | null;
 }
@@ -32,7 +34,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('lesgo_cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
+  // Guarda en la BD la cantidad de un ítem del carrito guardado; si falla, revierte el cambio local
+  const persistQuantity = (productId: string, quantity: number, previousQuantity: number) => {
+    const token = getSession().token;
+    if (!token) return;
+    updateCarritoItemApi(token, productId, quantity).catch(error => {
+      console.warn('No se pudo guardar la cantidad del carrito:', error);
+      setCartItems(prev => prev.map(item =>
+        item.product.id === productId ? { ...item, quantity: previousQuantity } : item
+      ));
+      const reason = error instanceof Error ? error.message : 'sin conexión con el servidor';
+      showToast(`No se pudo guardar el cambio en tu carrito: ${reason}`);
+    });
+  };
+
   const addToCart = (product: Product, quantity = 1) => {
+    const current = cartItems.find(item => item.product.id === product.id);
+    if (current?.saved && current.quantity + quantity <= product.stock) {
+      persistQuantity(product.id, current.quantity + quantity, current.quantity);
+    }
     setCartItems(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
@@ -62,20 +82,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateQuantity = (productId: string, delta: number) => {
-    setCartItems(prev => prev.map(item => {
-      if (item.product.id === productId) {
-        const newQuantity = item.quantity + delta;
+    const item = cartItems.find(i => i.product.id === productId);
+    if (!item) return;
 
-        // Evitar que la cantidad sea menor a 1
-        if (delta > 0 && newQuantity > item.product.stock) {
-          showToast('Stock máximo alcanzado');
-          return item; // Retorna sin sumar
-        }
+    const newQuantity = item.quantity + delta;
+    if (delta > 0 && newQuantity > item.product.stock) {
+      showToast('Stock máximo alcanzado');
+      return;
+    }
 
-        return { ...item, quantity: Math.max(1, newQuantity) };
-      }
-      return item;
-    }));
+    // Evitar que la cantidad sea menor a 1
+    const quantity = Math.max(1, newQuantity);
+    if (quantity === item.quantity) return;
+
+    setCartItems(prev => prev.map(i => i.product.id === productId ? { ...i, quantity } : i));
+    if (item.saved) {
+      persistQuantity(productId, quantity, item.quantity);
+    }
   };
 
   const removeItem = (productId: string) => {
@@ -84,11 +107,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => setCartItems([]);
 
+  const replaceCart = (items: CartItem[]) => setCartItems(items);
+
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
     // Se añade toastMessage al Provider
-    <CartContext.Provider value={{ cartItems, addToCart, updateQuantity, removeItem, clearCart, totalItems, toastMessage }}>
+    <CartContext.Provider value={{ cartItems, addToCart, updateQuantity, removeItem, clearCart, replaceCart, totalItems, toastMessage }}>
       {children}
       
       {/* UI DEL TOAST: Se renderiza por encima de la app si hay un mensaje */}

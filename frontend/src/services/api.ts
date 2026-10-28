@@ -1,4 +1,4 @@
-import { PRODUCTS, type Product } from '../data/products';
+import { PRODUCTS, type CartItem, type Product } from '../data/products';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -131,6 +131,50 @@ export async function getProductoByIdApi(id: string, signal?: AbortSignal): Prom
     return data.producto;
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'No se pudo cargar el producto.', { cause: error });
+  }
+}
+
+/* ==========================================================================
+   CARRITO GUARDADO EN BASE DE DATOS
+   ========================================================================== */
+
+export interface CarritoResponse {
+  success: boolean;
+  carrito: { id_carrito: number; fecha_creacion: string } | null;
+  items: CartItem[];
+  omitidos: number[];
+}
+
+/**
+ * Consulta el carrito guardado del cliente autenticado GET /api/carrito
+ */
+export async function getCarritoApi(token: string, signal?: AbortSignal): Promise<CartItem[]> {
+  const res = await fetch(`${API_BASE_URL}/carrito`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) {
+    throw new Error(`Error HTTP: ${res.status}`);
+  }
+  const data: CarritoResponse = await res.json();
+  if (!data.success || !Array.isArray(data.items)) {
+    throw new Error('Respuesta de carrito inválida.');
+  }
+  return data.items.map(({ product, quantity }) => ({ product, quantity, saved: true }));
+}
+
+/**
+ * Guarda la nueva cantidad de un producto del carrito PATCH /api/carrito/items/:idProducto
+ */
+export async function updateCarritoItemApi(token: string, productId: string, cantidad: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/carrito/items/${encodeURIComponent(productId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ cantidad })
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(`${data?.message || 'Error del servidor'} (HTTP ${res.status})`);
   }
 }
 

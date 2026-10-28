@@ -120,6 +120,8 @@ export const PRODUCTS: Product[] = [
 export interface CartItem {
   product: Product;
   quantity: number;
+  /** true cuando el ítem proviene del carrito guardado en la base de datos */
+  saved?: boolean;
 }
 
 export const INITIAL_CART: CartItem[] = [
