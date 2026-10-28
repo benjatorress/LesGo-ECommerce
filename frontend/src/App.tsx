@@ -159,27 +159,27 @@ export function App() {
         {currentView === 'contacto' && (
           <ContactView />
         )}
+
+        {/* Vista de Detalle de Producto al hacer clic en un set */}
+        {selectedProduct && (
+          <ProductDetailModal
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onAddToCart={handleAddToCartWithNotification}
+            onBuyNow={handleBuyNow}
+          />
+        )}
+        {/* Vista de Pedidos para Usuarios Autenticados */}
+      
+        {currentView === 'pedidos' && (
+          <OrdersView
+            currentUser={currentUser}
+            onOpenLogin={() => setAuthModal('login')}
+            onGoToCatalog={() => setCurrentView('catalog')}
+          />
+        )}
+
       </main>
-
-      {/* Vista de Detalle de Producto al hacer clic en un set */}
-      {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onAddToCart={handleAddToCartWithNotification}
-          onBuyNow={handleBuyNow}
-        />
-      )}
-      {/* Vista de Pedidos para Usuarios Autenticados */}
-
-      {currentView === 'pedidos' && (
-        <OrdersView
-          currentUser={currentUser}
-          onOpenLogin={() => setAuthModal('login')}
-          onGoToCatalog={() => setCurrentView('catalog')}
-        />
-      )}
-
       {/* Modales de Autenticación */}
       {authModal && (
         <AuthModal
