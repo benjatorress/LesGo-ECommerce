@@ -4,7 +4,7 @@ import { getSession, updateCarritoItemApi } from '../services/api';
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (product: Product, quantity?: number) => void;
+  addToCart: (product: Product, quantity?: number) => boolean;
   updateQuantity: (productId: string, delta: number) => void;
   removeItem: (productId: string) => void;
   clearCart: () => void;
@@ -29,6 +29,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const showStockLimitMessage = (product: Product, currentQuantity: number) => {
+    if (product.stock <= 0) {
+      showToast('Este producto está agotado.');
+      return;
+    }
+
+    if (currentQuantity > 0) {
+      showToast(
+        `Has alcanzado el máximo de unidades disponibles para este producto (${product.stock}). Ya tienes ${currentQuantity} en tu carrito.`
+      );
+      return;
+    }
+
+    showToast(
+      `Solo hay ${product.stock} ${product.stock === 1 ? 'unidad disponible' : 'unidades disponibles'} de este producto.`
+    );
+  };
+
   // 2. Guardar en LocalStorage cada vez que cartItems cambie
   useEffect(() => {
     localStorage.setItem('lesgo_cart', JSON.stringify(cartItems));
@@ -50,35 +68,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addToCart = (product: Product, quantity = 1) => {
     const current = cartItems.find(item => item.product.id === product.id);
-    if (current?.saved && current.quantity + quantity <= product.stock) {
-      persistQuantity(product.id, current.quantity + quantity, current.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      showToast('La cantidad debe ser de al menos 1 unidad.');
+      return false;
     }
-    setCartItems(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) {
 
-        // Verificar si la nueva cantidad excede el stock
-        const newQuantity = existing.quantity + quantity;
-        if (newQuantity > product.stock) {
-          showToast('Stock máximo alcanzado');
-          return prev; // Retorna el estado sin cambios
-        }
+    const newQuantity = (current?.quantity ?? 0) + quantity;
+    if (product.stock <= 0 || newQuantity > product.stock) {
+      showStockLimitMessage(product, current?.quantity ?? 0);
+      return false;
+    }
 
-        return prev.map(item =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
+    if (current?.saved) {
+      persistQuantity(product.id, newQuantity, current.quantity);
+    }
 
-      // Verificar si la cantidad inicial excede el stock
-      if (quantity > product.stock) {
-        showToast('Stock máximo alcanzado');
-        return prev;
-      }
-
-      return [...prev, { product, quantity }];
-    });
+    setCartItems(prev => current
+      ? prev.map(item =>
+        item.product.id === product.id ? { ...item, quantity: newQuantity } : item
+      )
+      : [...prev, { product, quantity }]
+    );
+    return true;
   };
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -87,7 +98,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newQuantity = item.quantity + delta;
     if (delta > 0 && newQuantity > item.product.stock) {
-      showToast('Stock máximo alcanzado');
+      showStockLimitMessage(item.product, item.quantity);
       return;
     }
 
@@ -124,8 +135,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           padding: '12px 24px', borderRadius: '8px', 
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 9999,
           display: 'flex', alignItems: 'center', gap: '8px'
-        }}>
-          ⚠️ {toastMessage}
+        }} role="alert" aria-live="assertive">
+          <span aria-hidden="true">⚠️</span> {toastMessage}
         </div>
       )}
     </CartContext.Provider>

@@ -6,8 +6,8 @@ import { ProductDetailModal } from './ProductDetailModal';
 interface Props {
   id: string;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity?: number) => void;
-  onBuyNow: (product: Product, quantity?: number) => void;
+  onAddToCart: (product: Product, quantity?: number) => boolean;
+  onBuyNow: (product: Product, quantity?: number) => boolean;
 }
 
 export function ProductDetailLoader({ id, ...actions }: Props) {

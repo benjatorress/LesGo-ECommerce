@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from './App';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 import { PRODUCTS } from './data/products';
 import { CheckoutView } from './components/CheckoutView';
 
@@ -18,6 +18,28 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+it('muestra en español cuando se alcanza el máximo de unidades disponibles', () => {
+  const limitedProduct = { ...PRODUCTS[0], stock: 1 };
+  function CartValidationHarness() {
+    const { addToCart, cartItems } = useCart();
+    return (
+      <>
+        <button type="button" onClick={() => addToCart(limitedProduct)}>Agregar producto</button>
+        <output>{cartItems[0]?.quantity ?? 0}</output>
+      </>
+    );
+  }
+
+  render(<CartProvider><CartValidationHarness /></CartProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Agregar producto' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Agregar producto' }));
+
+  expect(screen.getByRole('alert').textContent).toContain(
+    'Has alcanzado el máximo de unidades disponibles para este producto (1).'
+  );
+  expect(screen.getByText('1')).toBeTruthy();
 });
 
 it('catálogo local: muestra PRODUCTS sin consultar el backend', async () => {
