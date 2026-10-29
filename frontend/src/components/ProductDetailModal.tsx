@@ -5,8 +5,8 @@ import type { Product } from '../data/products';
 interface ProductDetailModalProps {
   product: Product;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity?: number) => void;
-  onBuyNow?: (product: Product, quantity?: number) => void;
+  onAddToCart: (product: Product, quantity?: number) => boolean;
+  onBuyNow?: (product: Product, quantity?: number) => boolean;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -21,7 +21,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const available = product.stock > 0;
 
   const handleAdd = () => {
-    onAddToCart(product, quantity);
+    if (!onAddToCart(product, quantity)) return;
     setAddedAnimation(true);
     setTimeout(() => setAddedAnimation(false), 2000);
   };

@@ -73,13 +73,18 @@ export function App() {
   };
 
   const handleAddToCartWithNotification = (product: Product, quantity: number = 1) => {
-    addToCart(product, quantity);
+    const added = addToCart(product, quantity);
+    if (!added) return false;
     showNotification(`"${product.name}" (${quantity > 1 ? `${quantity}x` : '1x'}) añadido al carrito`);
+    return true;
   };
 
   const handleBuyNow = (product: Product, quantity: number = 1) => {
-    handleAddToCartWithNotification(product, quantity);
-    setCurrentView('cart');
+    if (handleAddToCartWithNotification(product, quantity)) {
+      setCurrentView('cart');
+      return true;
+    }
+    return false;
   };
 
   const handleRemoveItemWithNotification = (productId: string) => {
