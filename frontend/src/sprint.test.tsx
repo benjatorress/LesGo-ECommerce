@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from './App';
 import { CartProvider, useCart } from './context/CartContext';
 import { PRODUCTS } from './data/products';
@@ -114,6 +114,12 @@ it('carrito → checkout: resumen actual, formulario y confirmación sin pago ni
   fireEvent.click(screen.getByRole('button', { name: 'Revisar pedido' }));
   expect(screen.getByRole('heading', { name: 'Checkout' })).toBeTruthy();
   expect(screen.getByLabelText('Resumen final de la orden').textContent).toContain('2 × $89.990 = $179.980');
+  const paymentMethod = screen.getByLabelText('Método de pago');
+  expect(paymentMethod.getAttribute('aria-describedby')).toBe('checkout-payment-note');
+  expect(screen.getByText('El pago con tarjeta está pendiente de integración.')).toBeTruthy();
+  fireEvent.change(paymentMethod, { target: { value: 'transferencia' } });
+  expect(screen.queryByText('El pago con tarjeta está pendiente de integración.')).toBeNull();
+  fireEvent.change(paymentMethod, { target: { value: 'tarjeta' } });
   completeShippingForm();
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar pedido' }));
   expect(screen.getByRole('status').textContent).toContain('No se ha creado un pedido ni procesado un pago');
@@ -121,6 +127,33 @@ it('carrito → checkout: resumen actual, formulario y confirmación sin pago ni
   expect(JSON.parse(localStorage.getItem('lesgo_cart') || '[]')[0].quantity).toBe(2);
   fireEvent.click(screen.getByRole('button', { name: 'Volver al carrito' }));
   expect(screen.getByRole('heading', { name: 'Carrito' })).toBeTruthy();
+});
+
+it('checkout muestra la imagen de cada producto y utiliza un marcador si falta o falla', () => {
+  const products = [
+    { ...PRODUCTS[0], image: '/products/item1_city.jpg' },
+    { ...PRODUCTS[1], image: '/products/item2_starwars.jpg' },
+    { ...PRODUCTS[2], image: '' }
+  ];
+  localStorage.setItem('lesgo_cart', JSON.stringify(products.map(item => ({ product: item, quantity: 1 }))));
+
+  render(
+    <CartProvider>
+      <CheckoutView onBack={() => {}} />
+    </CartProvider>
+  );
+
+  for (const item of products) {
+    const row = screen.getByText(item.name).closest('.checkout-summary-item');
+    expect(row).not.toBeNull();
+    const image = within(row as HTMLElement).getByRole('presentation');
+    expect(image.getAttribute('src')).toBe(item.image || '/product-placeholder.svg');
+  }
+
+  const firstRow = screen.getByText(products[0].name).closest('.checkout-summary-item') as HTMLElement;
+  const firstImage = within(firstRow).getByRole('presentation');
+  fireEvent.error(firstImage);
+  expect(firstImage.getAttribute('src')).toBe('/product-placeholder.svg');
 });
 
 it('callback preparado para SCRUM-20: payload sin precio/cliente, fallo conserva carrito', async () => {

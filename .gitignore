@@ -3,6 +3,7 @@ node_modules/
 */node_modules/
 .pnp
 .pnp.js
+pnpm-lock.yaml
 
 # Production / Build outputs
 dist/

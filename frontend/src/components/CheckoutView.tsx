@@ -78,12 +78,18 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
             Método de pago
             <select
               value={form.metodo_pago}
+              aria-describedby={form.metodo_pago === 'tarjeta' ? 'checkout-payment-note' : undefined}
               onChange={event => setForm({ ...form, metodo_pago: event.target.value as CheckoutForm['metodo_pago'] })}
             >
-              <option value="tarjeta">Tarjeta (pendiente de integración)</option>
+              <option value="tarjeta">Tarjeta</option>
               <option value="transferencia">Transferencia</option>
             </select>
           </label>
+          {form.metodo_pago === 'tarjeta' && (
+            <p id="checkout-payment-note" className="checkout-field-note">
+              El pago con tarjeta está pendiente de integración.
+            </p>
+          )}
           <label>
             Observaciones (opcional)
             <textarea
@@ -99,10 +105,24 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
           {cartItems.length === 0 && <p>Tu carrito está vacío.</p>}
           {cartItems.map(item => (
             <div className="checkout-summary-item" key={item.product.id}>
-              <strong>{item.product.name}</strong>
-              <span>
-                {item.quantity} × {money(item.product.price)} = {money(item.quantity * item.product.price)}
-              </span>
+              <img
+                className="checkout-summary-image"
+                src={item.product.image || '/product-placeholder.svg'}
+                alt=""
+                width="56"
+                height="56"
+                onError={event => {
+                  if (!event.currentTarget.src.endsWith('/product-placeholder.svg')) {
+                    event.currentTarget.src = '/product-placeholder.svg';
+                  }
+                }}
+              />
+              <div className="checkout-summary-details">
+                <strong>{item.product.name}</strong>
+                <span>
+                  {item.quantity} × {money(item.product.price)} = {money(item.quantity * item.product.price)}
+                </span>
+              </div>
             </div>
           ))}
           <p className="summary-row total-row">Total estimado <strong>{money(total)}</strong></p>
