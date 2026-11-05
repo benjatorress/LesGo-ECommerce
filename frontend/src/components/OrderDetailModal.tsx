@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Check, Loader2, AlertCircle, Truck, Send, CheckCircle2 } from 'lucide-react';
+import { X, Check, Loader2, AlertCircle, Truck, Send, CheckCircle2, RotateCcw } from 'lucide-react';
 import {
   getPedidoDetalleApi,
   crearReclamoApi,
@@ -16,6 +16,8 @@ import {
   motivoLabel
 } from '../utils/orderFormat';
 import { OrderStatusBadge } from './OrderStatusBadge';
+
+const RETURN_REQUEST_URL = import.meta.env.VITE_RETURN_REQUEST_URL;
 
 interface OrderDetailModalProps {
   idCliente: number;
@@ -139,6 +141,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <span>Total</span>
                 <strong>{formatCLP(pedido.monto_total)}</strong>
               </div>
+              <a
+                href={RETURN_REQUEST_URL}
+                className="order-detail-btn return-request-open-btn"
+              >
+                <RotateCcw size={15} />
+                <span>Solicitar devolución</span>
+              </a>
             </section>
 
             {/* Seguimiento + Logística ERP */}
