@@ -11,7 +11,7 @@ export interface Product {
   image: string;
   images?: string[];
   specifications?: Record<string, string | number>;
-  inventorySource?: 'mock' | 'http';
+  inventorySource?: 'mock' | 'http' | 'postgres';
   description?: string;
   minifigures?: number;
   highlights?: string[];

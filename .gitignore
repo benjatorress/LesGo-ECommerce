@@ -58,3 +58,6 @@ env/
 inspo
 
 graphify-out/
+
+# OpenCode local agent config (commands, session state)
+.opencode/

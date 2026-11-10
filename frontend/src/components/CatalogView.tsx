@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, SlidersHorizontal, RotateCcw, Layers, Baby, Coins } from 'lucide-react';
+import { Search, Plus, X, SlidersHorizontal, RotateCcw, Layers, Coins } from 'lucide-react';
 import type { Product } from '../data/products';
 import { getProductosApi } from '../services/api';
 
@@ -26,14 +26,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   // Filtros de Rango de Precio
   const [minPrice, setMinPrice] = useState<number>(0);
-  const [maxPrice, setMaxPrice] = useState<number>(250000);
+  const [maxPrice, setMaxPrice] = useState<number>(0);
+  // Tope dinámico: precio del set más caro que devuelve la BD.
+  const [priceCeiling, setPriceCeiling] = useState<number>(0);
 
   // Filtros de Piezas
   const [minPieces, setMinPieces] = useState<number>(0);
   const [piecesPreset, setPiecesPreset] = useState<string>('all');
-
-  // Filtro de Edad
-  const [selectedAge, setSelectedAge] = useState<string>('all');
 
   // Estado de productos y carga
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,13 +46,6 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     { id: 'Marvel', label: 'Marvel & DC', color: '#F59E0B' },
     { id: 'Ninjago', label: 'Lego Ninjago', color: '#EC4899' },
     { id: 'Especiales', label: 'Especiales', color: '#8B5CF6' }
-  ];
-
-  const ageOptions = [
-    { id: 'all', label: 'Todas las edades', badge: 'Todos' },
-    { id: 'kids', label: '5 - 7 años', badge: 'Kids' },
-    { id: 'teens', label: '8 - 12 años', badge: 'Junior' },
-    { id: 'adults', label: '16+ años', badge: 'Adults' }
   ];
 
   // Llamada a la API con todos los filtros combinados
@@ -77,15 +69,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       getProductosApi({
         categoria: selectedCategory,
         min_precio: minPrice > 0 ? minPrice : undefined,
-        max_precio: maxPrice < 250000 ? maxPrice : undefined,
+        max_precio: priceCeiling > 0 && maxPrice < priceCeiling ? maxPrice : undefined,
         min_piezas: calculatedMinPieces,
         max_piezas: calculatedMaxPieces,
-        edad: selectedAge,
         search: searchQuery
       })
         .then((data) => {
           if (!isCancelled) {
             setProducts(data);
+            if (priceCeiling === 0 && data.length > 0) {
+              const highest = data.reduce((max, product) => Math.max(max, product.price), 0);
+              const rounded = Math.ceil(highest / 5000) * 5000;
+              setPriceCeiling(rounded);
+              setMaxPrice(rounded);
+            }
             setLoading(false);
           }
         })
@@ -103,13 +100,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [selectedCategory, minPrice, maxPrice, minPieces, piecesPreset, selectedAge, searchQuery]);
+  }, [selectedCategory, minPrice, maxPrice, minPieces, piecesPreset, searchQuery, priceCeiling]);
 
   const handleMinPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setMinPrice(val);
     if (val > maxPrice) {
-      setMaxPrice(Math.min(250000, val + 10000));
+      setMaxPrice(Math.min(priceCeiling, val + 10000));
     }
   };
 
@@ -138,20 +135,18 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const handleResetFilters = () => {
     setSelectedCategory('all');
     setMinPrice(0);
-    setMaxPrice(250000);
+    setMaxPrice(priceCeiling);
     setMinPieces(0);
     setPiecesPreset('all');
-    setSelectedAge('all');
     setSearchQuery('');
   };
 
   const hasActiveFilters =
     selectedCategory !== 'all' ||
     minPrice > 0 ||
-    maxPrice < 250000 ||
+    maxPrice < priceCeiling ||
     piecesPreset !== 'all' ||
     minPieces > 0 ||
-    selectedAge !== 'all' ||
     searchQuery.trim().length > 0;
 
   const handleCardClick = (product: Product) => {
@@ -239,7 +234,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             <input
               type="range"
               min={0}
-              max={150000}
+              max={priceCeiling || 500000}
               step={5000}
               value={minPrice}
               onChange={handleMinPriceChange}
@@ -256,8 +251,8 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </div>
             <input
               type="range"
-              min={30000}
-              max={250000}
+              min={0}
+              max={priceCeiling || 500000}
               step={5000}
               value={maxPrice}
               onChange={handleMaxPriceChange}
@@ -312,41 +307,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             />
           </div>
         </div>
-
-        {/* Sección 4: Filtro por Edad Recomendada */}
-        <div className="sidebar-filter-box">
-          <div className="filter-box-header">
-            <Baby size={14} color="#4ADE80" />
-            <span className="filter-box-title">Edad Recomendada</span>
-          </div>
-
-          <div className="age-options-list">
-            {ageOptions.map((opt) => {
-              const isSelected = selectedAge === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className={`age-option-pill ${isSelected ? 'active' : ''}`}
-                  onClick={() => setSelectedAge(opt.id)}
-                >
-                  <div className="age-pill-left">
-                    <span className="age-lego-stud" />
-                    <span className="age-pill-text">{opt.label}</span>
-                  </div>
-                  <span className="age-badge-tag">{opt.badge}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* Área Central: Buscador, Badges de Filtros Activos y Grilla de Productos */}
       <main className="catalog-main">
-        {products.some(product => product.inventorySource === 'mock') && (
-          <p role="note">Inventario simulado · modo de desarrollo</p>
-        )}
         {/* Barra de Búsqueda Minimalista y Limpia */}
         <div className="search-bar-wrapper">
           <div className="search-bar">
@@ -386,22 +350,16 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                   <button type="button" onClick={() => setSelectedCategory('all')}>×</button>
                 </span>
               )}
-              {(minPrice > 0 || maxPrice < 250000) && (
+              {(minPrice > 0 || maxPrice < priceCeiling) && (
                 <span className="active-filter-chip">
                   <span>Precio: {formatCLP(minPrice)} - {formatCLP(maxPrice)}</span>
-                  <button type="button" onClick={() => { setMinPrice(0); setMaxPrice(250000); }}>×</button>
+                  <button type="button" onClick={() => { setMinPrice(0); setMaxPrice(priceCeiling); }}>×</button>
                 </span>
               )}
               {(piecesPreset !== 'all' || minPieces > 0) && (
                 <span className="active-filter-chip">
                   <span>Piezas: {piecesPreset !== 'custom' ? piecesPreset : `${minPieces}+`}</span>
                   <button type="button" onClick={() => { setMinPieces(0); setPiecesPreset('all'); }}>×</button>
-                </span>
-              )}
-              {selectedAge !== 'all' && (
-                <span className="active-filter-chip">
-                  <span>Edad: {selectedAge}</span>
-                  <button type="button" onClick={() => setSelectedAge('all')}>×</button>
                 </span>
               )}
             </div>
@@ -419,7 +377,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           <div className="catalog-empty-state">
             <div style={{ fontSize: '36px', marginBottom: '8px' }}>🧩</div>
             <p style={{ fontSize: '18px', fontWeight: 800, color: '#1E293B' }}>No se encontraron sets con los filtros seleccionados</p>
-            <p style={{ fontSize: '14px', marginTop: '6px', color: '#64748B' }}>Prueba ajustando el rango de precio, piezas o edades.</p>
+            <p style={{ fontSize: '14px', marginTop: '6px', color: '#64748B' }}>Prueba ajustando el rango de precio o la cantidad de piezas.</p>
             <button
               type="button"
               onClick={handleResetFilters}

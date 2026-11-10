@@ -9,7 +9,6 @@ import { CheckoutView } from './components/CheckoutView';
 const product = { ...PRODUCTS[0], name: 'Producto actualizado desde Inventario', stock: 2 };
 const mount = () => render(<CartProvider><App /></CartProvider>);
 beforeEach(() => {
-  vi.stubEnv('VITE_CATALOG_SOURCE', 'local');
   localStorage.clear();
   sessionStorage.clear();
   window.history.replaceState({}, '', '/?view=catalog');
@@ -42,17 +41,21 @@ it('muestra en español cuando se alcanza el máximo de unidades disponibles', (
   expect(screen.getByText('1')).toBeTruthy();
 });
 
-it('catálogo local: muestra PRODUCTS sin consultar el backend', async () => {
-  const fetchMock = vi.fn().mockRejectedValue(new Error('Backend no disponible'));
+it('catálogo real: muestra los productos que devuelve el backend', async () => {
+  const apiProducts = [
+    { ...PRODUCTS[0], id: '1', name: 'Downtown', inventorySource: 'postgres' as const },
+    { ...PRODUCTS[1], id: '2', name: 'The City Tower', inventorySource: 'postgres' as const }
+  ];
+  const fetchMock = vi.fn().mockResolvedValue(
+    Response.json({ success: true, productos: apiProducts })
+  );
   vi.stubGlobal('fetch', fetchMock);
   mount();
 
-  await screen.findByTitle(PRODUCTS[0].name);
-  for (const product of PRODUCTS) {
-    expect(screen.getByTitle(product.name)).toBeTruthy();
-  }
-  expect(screen.getByRole('note').textContent).toContain('simulado');
-  expect(fetchMock).not.toHaveBeenCalled();
+  await screen.findByTitle('Downtown');
+  expect(screen.getByTitle('The City Tower')).toBeTruthy();
+  expect(screen.queryByRole('note')).toBeNull();
+  expect(fetchMock).toHaveBeenCalled();
 });
 
 function completeShippingForm() {
