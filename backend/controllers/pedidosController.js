@@ -23,7 +23,9 @@ const sumarHoras = (fecha, horas) => {
 };
 
 const construirSeguimiento = (pedido, envio) => {
-  const completados = PASOS_COMPLETADOS[pedido.estado] ?? 1;
+  // El estado guardado es de dominio ('Pendiente'/'Pagada'); los pasos usan el
+  // vocabulario visual. Sin este mapeo, un pedido pagado no marcaría el paso 2.
+  const completados = PASOS_COMPLETADOS[visualOrder(pedido).estado] ?? 1;
   const f = pedido.fecha_pedido;
   const fechas = [
     sumarHoras(f, 0),
@@ -175,17 +177,23 @@ export const getPedidoDetalle = async (req, res) => {
 
 export const postPedido = async (req, res) => {
   const { inventory, orders, crm } = req.app.locals;
+  // Con tarjeta el CRM se difiere: lo sincroniza el webhook cuando el pago se
+  // confirma, para no registrar pedidos que el cliente abandone.
+  const pagoConTarjeta = req.body?.metodo_pago === 'tarjeta';
   const result = await createOrder({
     body: req.body,
     customer: req.customer,
     key: req.get('Idempotency-Key'),
     inventory,
     orders,
-    crm
+    crm,
+    deferCrm: pagoConTarjeta
   });
-  const message = result.crmStatus === 'pending'
-    ? 'Pedido creado en estado Pendiente. Sincronización CRM pendiente; no se ha procesado ningún pago.'
-    : 'Pedido creado en estado Pendiente; no se ha procesado ningún pago.';
+  const message = pagoConTarjeta
+    ? 'Pedido creado en estado Pendiente; queda pendiente de pago.'
+    : result.crmStatus === 'pending'
+      ? 'Pedido creado en estado Pendiente. Sincronización CRM pendiente; no se ha procesado ningún pago.'
+      : 'Pedido creado en estado Pendiente; no se ha procesado ningún pago.';
 
   res.status(result.replay ? 200 : 201).json({
     success: true,

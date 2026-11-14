@@ -68,6 +68,17 @@ export function createMockOrderRepository({ pedidos = PEDIDOS, detalles = DETALL
   };
 }
 
+async function createPoolFromUrl(connectionString) {
+  const { default: pg } = await import('pg');
+  const pool = new pg.Pool({
+    connectionString,
+    max: 5,
+    connectionTimeoutMillis: 5000
+  });
+  pool.on('error', () => console.error('Conexión PostgreSQL interrumpida.'));
+  return pool;
+}
+
 export function createOrderRepository(env = process.env) {
   const mode = env.ORDER_REPOSITORY || 'mock';
   if (mode === 'mock') {
@@ -76,21 +87,21 @@ export function createOrderRepository(env = process.env) {
     }
     return createMockOrderRepository();
   }
-  if (mode !== 'postgres' || !env.DATABASE_URL || env.DB_ACCESS_ENABLED !== 'true') {
-    throw new Error('PostgreSQL requiere DATABASE_URL y DB_ACCESS_ENABLED=true tras autorización');
+  // Se prefiere el pool compartido de config/db.js (misma configuración que
+  // carrito e inventario) y se deja DATABASE_URL como alternativa explícita.
+  const useSharedPool = Boolean(env.DB_HOST);
+  if (mode !== 'postgres' || env.DB_ACCESS_ENABLED !== 'true' || (!useSharedPool && !env.DATABASE_URL)) {
+    throw new Error('PostgreSQL requiere DB_HOST (o DATABASE_URL) y DB_ACCESS_ENABLED=true tras autorización');
   }
   let repository;
   async function load() {
-    repository ||= import('pg').then(async ({ default: pg }) => {
+    repository ||= (async () => {
       const { createPostgresOrderRepository } = await import('./postgresOrderRepository.js');
-      const pool = new pg.Pool({
-        connectionString: env.DATABASE_URL,
-        max: 5,
-        connectionTimeoutMillis: 5000
-      });
-      pool.on('error', () => console.error('Conexión PostgreSQL interrumpida.'));
+      const pool = useSharedPool
+        ? (await import('../config/db.js')).pool
+        : await createPoolFromUrl(env.DATABASE_URL);
       return createPostgresOrderRepository(pool);
-    });
+    })();
     return repository;
   }
   const adapter = { mode: 'postgres' };
