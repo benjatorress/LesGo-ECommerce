@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ViewType } from '../components/Navbar';
 
-const views: ViewType[] = ['home', 'catalog', 'cart', 'checkout', 'nosotros', 'contacto', 'pedidos'];
+const views: ViewType[] = ['home', 'catalog', 'cart', 'checkout', 'checkout-success', 'nosotros', 'contacto', 'pedidos'];
 function readLocation() {
   const params = new URLSearchParams(window.location.search);
   const requested = params.get('view') as ViewType;

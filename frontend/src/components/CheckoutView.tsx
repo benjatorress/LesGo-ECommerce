@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useCart } from '../context/CartContext';
 import { toOrderPayload, type CheckoutForm, type CrearPedidoPayload } from '../services/checkoutContract';
 import './checkout.css';
 
 interface Props {
   onBack: () => void;
-  onConfirm?: (payload: CrearPedidoPayload) => Promise<void>;
+  onConfirm?: (payload: CrearPedidoPayload, idempotencyKey: string) => Promise<void>;
 }
 
 const deliveryFields = [
@@ -14,6 +14,19 @@ const deliveryFields = [
   { name: 'ciudad_entrega', label: 'Ciudad', autoComplete: 'address-level2' },
   { name: 'telefono_contacto', label: 'Teléfono de contacto', autoComplete: 'tel' }
 ] as const;
+
+/**
+ * Clave de idempotencia del checkout. Se conserva entre reintentos del mismo
+ * formulario y se regenera cuando cambian los ítems o los datos de envío, para
+ * no chocar con `IDEMPOTENCY_CONFLICT` si el usuario corrige algo tras un fallo.
+ */
+function generarIdempotencyKey(): string {
+  const cryptoObj = globalThis.crypto as Crypto | undefined;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return cryptoObj.randomUUID();
+  }
+  return `chk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export function CheckoutView({ onBack, onConfirm }: Props) {
   const { cartItems } = useCart();
@@ -25,27 +38,47 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
     metodo_pago: 'tarjeta',
     observaciones: ''
   });
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(() =>
+    new URLSearchParams(window.location.search).get('pago') === 'cancelado'
+      ? 'Pago cancelado. Tu carrito se conserva.'
+      : ''
+  );
   const [submitting, setSubmitting] = useState(false);
+  const claveRef = useRef<{ huella: string; clave: string } | null>(null);
   const total = cartItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const money = (value: number) => `$${value.toLocaleString('es-CL')}`;
+  const esTarjeta = form.metodo_pago === 'tarjeta';
+
+  const claveIdempotencia = (huella: string) => {
+    if (!claveRef.current || claveRef.current.huella !== huella) {
+      claveRef.current = { huella, clave: generarIdempotencyKey() };
+    }
+    return claveRef.current.clave;
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submitting || cartItems.length === 0) {
       return;
     }
     if (!onConfirm) {
-      setMessage('La confirmación del pedido está pendiente de integración (SCRUM-20). No se ha creado un pedido ni procesado un pago.');
+      setMessage('No se pudo iniciar el pago. Inténtalo nuevamente.');
       return;
     }
     setSubmitting(true);
     setMessage('');
     try {
-      await onConfirm(toOrderPayload(form, cartItems));
-    } catch {
-      setMessage('No se pudo confirmar el pedido. Tu carrito se conserva.');
-    } finally {
+      const payload = toOrderPayload(form, cartItems);
+      await onConfirm(payload, claveIdempotencia(JSON.stringify(payload)));
+      // Éxito: la vista se desmonta (redirección a Stripe o navegación a pedidos),
+      // así que el botón queda deshabilitado para evitar un segundo envío.
+    } catch (error) {
       setSubmitting(false);
+      setMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : 'No se pudo confirmar el pedido. Tu carrito se conserva.'
+      );
     }
   };
 
@@ -55,7 +88,7 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
       <button type="button" className="empty-state-reset-btn" onClick={onBack}>
         Volver al carrito
       </button>
-      <p>Revisa tu orden. Esta vista no procesa pagos.</p>
+      <p>Revisa tu orden antes de confirmar.</p>
 
       <form onSubmit={submit} className="cart-layout">
         <div className="cart-items-panel checkout-fields">
@@ -78,16 +111,16 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
             Método de pago
             <select
               value={form.metodo_pago}
-              aria-describedby={form.metodo_pago === 'tarjeta' ? 'checkout-payment-note' : undefined}
+              aria-describedby={esTarjeta ? 'checkout-payment-note' : undefined}
               onChange={event => setForm({ ...form, metodo_pago: event.target.value as CheckoutForm['metodo_pago'] })}
             >
               <option value="tarjeta">Tarjeta</option>
               <option value="transferencia">Transferencia</option>
             </select>
           </label>
-          {form.metodo_pago === 'tarjeta' && (
+          {esTarjeta && (
             <p id="checkout-payment-note" className="checkout-field-note">
-              El pago con tarjeta está pendiente de integración.
+              Serás redirigido a Stripe para completar el pago de forma segura.
             </p>
           )}
           <label>
@@ -128,7 +161,9 @@ export function CheckoutView({ onBack, onConfirm }: Props) {
           <p className="summary-row total-row">Total estimado <strong>{money(total)}</strong></p>
           <p>El servidor verificará precios y disponibilidad al crear el pedido.</p>
           <button className="payment-action-btn" type="submit" disabled={!cartItems.length || submitting}>
-            {submitting ? 'Confirmando…' : 'Confirmar pedido'}
+            {submitting
+              ? (esTarjeta ? 'Redirigiendo a Stripe…' : 'Confirmando…')
+              : (esTarjeta ? 'Pagar con tarjeta' : 'Confirmar pedido')}
           </button>
           {message && <p role="status">{message}</p>}
         </aside>
