@@ -1,4 +1,4 @@
-import { PRODUCTS, type CartItem, type Product } from '../data/products';
+import type { CartItem, Product } from '../data/products';
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -24,55 +24,10 @@ export interface ProductDetailResponse {
   producto: Product;
 }
 
-function getLocalProducts(filters: FilterParams): Product[] {
-  const category = filters.categoria?.trim().toLowerCase();
-  const search = filters.search?.trim().toLowerCase();
-  const age = filters.edad?.trim().toLowerCase();
-  const ageGroups: Record<string, string[]> = {
-    kids: ['5', '7', '8'],
-    teens: ['10', '12'],
-    adults: ['16', '18']
-  };
-
-  return PRODUCTS.filter(product => {
-    if (category && category !== 'all' && category !== 'todos' &&
-        !product.category.toLowerCase().includes(category) &&
-        !product.theme.toLowerCase().includes(category)) {
-      return false;
-    }
-    if (filters.min_precio !== undefined && product.price < filters.min_precio) return false;
-    if (filters.max_precio !== undefined && product.price > filters.max_precio) return false;
-    if (filters.min_piezas !== undefined && product.pieces < filters.min_piezas) return false;
-    if (filters.max_piezas !== undefined && product.pieces > filters.max_piezas) return false;
-
-    if (age && age !== 'all') {
-      const acceptedAges = ageGroups[age] || [age];
-      if (!acceptedAges.some(value => product.age.toLowerCase().includes(value))) {
-        return false;
-      }
-    }
-    if (search) {
-      const searchableFields = [product.name, product.theme, product.category, product.code];
-      if (!searchableFields.some(value => value.toLowerCase().includes(search))) {
-        return false;
-      }
-    }
-    return true;
-  }).map(product => ({ ...product, inventorySource: 'mock' }));
-}
-
 /**
- * Catálogo local por defecto; VITE_CATALOG_SOURCE=api consulta GET /api/productos.
+ * Catálogo real: siempre consulta GET /api/productos (sin fallback local).
  */
 export async function getProductosApi(filters: FilterParams = {}): Promise<Product[]> {
-  const source = import.meta.env.VITE_CATALOG_SOURCE || 'local';
-  if (source === 'local') {
-    return getLocalProducts(filters);
-  }
-  if (source !== 'api') {
-    throw new Error('VITE_CATALOG_SOURCE debe ser local o api.');
-  }
-
   const queryParams = new URLSearchParams();
 
   if (filters.categoria && filters.categoria !== 'all') {
