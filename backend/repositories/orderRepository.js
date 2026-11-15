@@ -114,7 +114,14 @@ export function createOrderRepository(env = process.env) {
         if (error instanceof AppError) {
           throw error;
         }
-        throw new AppError(503, 'PERSISTENCE_UNAVAILABLE', 'No se pudo acceder al almacenamiento de pedidos.');
+        // El 503 genérico ocultaba la causa real (permisos, secuencia
+        // desincronizada, columna faltante, conexión rechazada). Se registra y,
+        // fuera de producción, se muestra el código de PostgreSQL para poder
+        // diagnosticar desde el navegador. Nunca se expone el mensaje del driver.
+        const codigo = error.code ?? 'sin código';
+        console.error(`[pedidos] ${name} falló (${codigo}): ${error.message}`);
+        const pista = process.env.NODE_ENV === 'production' ? '' : ` Código: ${codigo}.`;
+        throw new AppError(503, 'PERSISTENCE_UNAVAILABLE', `No se pudo acceder al almacenamiento de pedidos.${pista}`);
       }
     };
   }

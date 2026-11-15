@@ -36,6 +36,15 @@ export const updateCartItem = async (req, res) => {
   return res.json({ success: true, item });
 };
 
+/**
+ * DELETE /api/carrito
+ * Vacía el carrito guardado del cliente de la sesión (p. ej. tras un pago aprobado).
+ */
+export const clearCart = async (req, res) => {
+  const eliminados = await req.app.locals.carts.clearByCustomer(req.customer.id_cliente);
+  return res.json({ success: true, eliminados });
+};
+
 export const syncCart = async (req, res) => {
   const { usuarioId, items } = req.body || {};
 

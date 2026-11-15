@@ -133,6 +133,23 @@ export async function updateCarritoItemApi(token: string, productId: string, can
   }
 }
 
+/**
+ * Vacía el carrito guardado del cliente autenticado DELETE /api/carrito
+ * Devuelve la cantidad de líneas eliminadas.
+ */
+export async function clearCarritoApi(token: string): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/carrito`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(`${data?.message || 'Error del servidor'} (HTTP ${res.status})`);
+  }
+  const data = await res.json().catch(() => null);
+  return data?.eliminados ?? 0;
+}
+
 /* ==========================================================================
    SERVICIOS DE AUTENTICACIÓN (LOGIN / SESIÓN)
    ========================================================================== */

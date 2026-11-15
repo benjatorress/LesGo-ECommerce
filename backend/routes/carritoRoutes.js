@@ -1,5 +1,5 @@
 import express from 'express';
-import { getCart, syncCart, updateCartItem } from '../controllers/carritoController.js';
+import { getCart, syncCart, updateCartItem, clearCart } from '../controllers/carritoController.js';
 import { requireCustomer } from '../services/sessionService.js';
 
 const router = express.Router();
@@ -17,6 +17,13 @@ router.get('/', requireCustomer, getCart);
  * @access  Cliente autenticado
  */
 router.patch('/items/:idProducto', requireCustomer, updateCartItem);
+
+/**
+ * @route   DELETE /api/carrito
+ * @desc    Vaciar el carrito guardado en la base de datos del cliente autenticado
+ * @access  Cliente autenticado
+ */
+router.delete('/', requireCustomer, clearCart);
 
 /**
  * @route   POST /api/carrito

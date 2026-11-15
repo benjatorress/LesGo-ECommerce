@@ -253,7 +253,8 @@ test('gateway stripe: crea la sesión con metadata, moneda, URLs e idempotencia'
   assert.equal(stripe.calls.length, 1);
   const { params, options } = stripe.calls[0];
   assert.equal(params.mode, 'payment');
-  assert.deepEqual(params.payment_method_types, ['card']);
+  // Stripe ya no acepta payment_method_types en Checkout Sessions
+  assert.equal('payment_method_types' in params, false);
   assert.equal(params.client_reference_id, '12');
   assert.equal(params.customer_email, 'cliente@lesgo.cl');
   assert.equal(params.metadata.id_pedido, '12');

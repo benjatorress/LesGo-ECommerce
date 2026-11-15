@@ -164,9 +164,10 @@ export function createStripeGateway(env = process.env, stripeImpl = null) {
         };
       }
 
+      // Los métodos de pago ya no se declaran aquí: se administran desde el
+      // Dashboard de Stripe (Settings → Payment methods).
       const params = {
         mode: 'payment',
-        payment_method_types: ['card'],
         client_reference_id: String(idPedido),
         metadata,
         line_items: buildLineItems({ idPedido, lineas: input.lineas, monto: input.monto, currency }),
