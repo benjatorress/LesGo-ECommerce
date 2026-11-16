@@ -76,6 +76,21 @@ export function mapCartLine(row) {
 }
 
 export function createCartRepository(env = process.env) {
+  if (env.DB_ACCESS_ENABLED !== 'true' || !env.DB_HOST) {
+    return {
+      mode: 'mock',
+      async getByCustomer() {
+        return { carrito: null, items: [], omitidos: [] };
+      },
+      async updateQuantity() {
+        return null;
+      },
+      async clearByCustomer() {
+        return 0;
+      }
+    };
+  }
+  
   let poolPromise;
   const getPool = () => {
     poolPromise ||= import('../config/db.js').then(module => module.pool);

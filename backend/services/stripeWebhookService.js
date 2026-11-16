@@ -16,10 +16,10 @@ const FAILED_EVENTS = {
 
 /**
  * Procesa eventos de Stripe de forma idempotente: la transición a `pagada` del
- * repositorio devuelve `transitioned: true` sólo la primera vez, y el CRM se
- * sincroniza únicamente en ese caso. Un reintento de Stripe no duplica efectos.
+ * repositorio devuelve `transitioned: true` sólo la primera vez, y tanto el CRM
+ * como el descuento de inventario se disparan únicamente en ese caso.
  */
-export function createStripeWebhookService({ paymentRepository, orders, crm }) {
+export function createStripeWebhookService({ paymentRepository, orders, crm, inventoryMovement }) {
   /**
    * Sincronización CRM best-effort del pedido ya pagado. Reutiliza la clave
    * idempotente del pedido para que el CRM pueda descartar duplicados.
@@ -40,6 +40,28 @@ export function createStripeWebhookService({ paymentRepository, orders, crm }) {
     const status = await crm.send(payload, `lesgo-order-${idCliente}-${event.key}`);
     await orders.markCrm(idPedido, status);
     return status;
+  }
+
+  /**
+   * Notificación best-effort de egreso (SALIDA) hacia Inventario al confirmar
+   * el pago. Lee las líneas desde `orders.get` (o el outbox si no hay detalle).
+   */
+  async function syncInventoryEgress(idPedido, idCliente) {
+    if (!inventoryMovement || inventoryMovement.mode === 'disabled') {
+      return { status: 'disabled' };
+    }
+    if (!Number.isSafeInteger(idCliente) || idCliente <= 0) {
+      return { status: 'skipped' };
+    }
+    const stored = await orders.get(idCliente, idPedido);
+    const lineas = stored?.detalle?.length
+      ? stored.detalle
+      : (stored?.event?.payload?.items ?? []);
+
+    if (!lineas.length) {
+      return { status: 'skipped' };
+    }
+    return inventoryMovement.registerEgress({ idPedido, lineas });
   }
 
   /**
@@ -67,7 +89,8 @@ export function createStripeWebhookService({ paymentRepository, orders, crm }) {
   return {
     /**
      * @returns {{ received: true, ignored?: true, pending?: boolean, transitioned?: boolean,
-     *             estado?: string|null, reason?: string, crmSync: Promise<string>|null }}
+     *             estado?: string|null, reason?: string, crmSync: Promise<string>|null,
+     *             inventorySync: Promise<object>|null }}
      */
     async handleEvent(event) {
       const type = event?.type;
@@ -75,7 +98,7 @@ export function createStripeWebhookService({ paymentRepository, orders, crm }) {
       const sessionId = typeof session?.id === 'string' && session.id ? session.id : null;
 
       if (!sessionId || (!PAID_EVENTS.has(type) && !FAILED_EVENTS[type])) {
-        return { received: true, ignored: true, crmSync: null };
+        return { received: true, ignored: true, crmSync: null, inventorySync: null };
       }
 
       const pago = await ensurePago(session, sessionId);
@@ -85,12 +108,12 @@ export function createStripeWebhookService({ paymentRepository, orders, crm }) {
           sessionId,
           estado: FAILED_EVENTS[type]
         });
-        return { received: true, estado: result.pago?.estado ?? null, crmSync: null };
+        return { received: true, estado: result.pago?.estado ?? null, crmSync: null, inventorySync: null };
       }
 
       if (type === 'checkout.session.completed' && session.payment_status !== 'paid') {
         // Pago asincrónico aún en curso: se espera a async_payment_succeeded.
-        return { received: true, pending: true, crmSync: null };
+        return { received: true, pending: true, crmSync: null, inventorySync: null };
       }
 
       // CLP es de cero decimales, así que `amount_total` llega en la misma escala
@@ -106,20 +129,27 @@ export function createStripeWebhookService({ paymentRepository, orders, crm }) {
           received: true,
           transitioned: false,
           reason: result.reason,
-          crmSync: null
+          crmSync: null,
+          inventorySync: null
         };
       }
 
       const idPedido = Number(pago.id_pedido);
       const idCliente = Number(pago.id_cliente ?? session.metadata?.id_cliente);
-      // No se espera al CRM para responder a Stripe: si falla, el pago sigue pagado
-      // y el pedido queda con CRM `pending` para reintento manual.
+
+      // No se espera al CRM ni a Inventario para responder 200 a Stripe: si uno
+      // falla, el pago sigue confirmado y no provoca reintentos innecesarios.
       const crmSync = syncCrm(idPedido, idCliente).catch((error) => {
         console.error(`[pagos] CRM no sincronizado para el pedido ${idPedido}: ${error.message}`);
         return 'pending';
       });
 
-      return { received: true, transitioned: true, crmSync };
+      const inventorySync = syncInventoryEgress(idPedido, idCliente).catch((error) => {
+        console.error(`[pagos] Egreso de inventario no registrado para el pedido ${idPedido}: ${error.message}`);
+        return { status: 'failed' };
+      });
+
+      return { received: true, transitioned: true, crmSync, inventorySync };
     }
   };
 }
