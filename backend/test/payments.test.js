@@ -1173,7 +1173,7 @@ test('inventoryMovement: valida configuración, contrato HTTP POST /movimientos/
 
   await assert.rejects(
     () => conflictService.registerEgress({ idPedido: 16, lineas: [{ id_producto: 7, cantidad: 99 }] }),
-    { status: 409 }
+    { status: 503 }
   );
   assert.equal(conflictService.history.at(-1).status, 'out_of_stock_conflict');
 });

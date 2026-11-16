@@ -14,10 +14,18 @@ export function createInventoryMovementService(env = process.env, fetchImpl = fe
     ? configuredUrl(env.INVENTORY_MOVEMENT_API_URL, env.INVENTORY_EGRESS_PATH || '/api/v1/movimientos/reserva')
     : null;
 
+  let lastHttpStatus = null;
+  const trackedFetch = async (targetUrl, options) => {
+    lastHttpStatus = null;
+    const res = await fetchImpl(targetUrl, options);
+    lastHttpStatus = res?.status ?? null;
+    return res;
+  };
+
   const request = createHttpClient({
     timeout: Number(env.INVENTORY_TIMEOUT_MS || 5000),
     token: env.INVENTORY_API_TOKEN,
-    fetchImpl
+    fetchImpl: trackedFetch
   });
 
   const history = [];
@@ -76,8 +84,15 @@ export function createInventoryMovementService(env = process.env, fetchImpl = fe
         history.push({ ...payload, status: 'reserved', timestamp: new Date().toISOString() });
         return { status: 'reserved', payload, response };
       } catch (error) {
-        const status = error?.status === 409 ? 'out_of_stock_conflict' : 'failed';
-        history.push({ ...payload, status, error: error.message, timestamp: new Date().toISOString() });
+        const isConflict = lastHttpStatus === 409;
+        const status = isConflict ? 'out_of_stock_conflict' : 'failed';
+        history.push({
+          ...payload,
+          status,
+          httpStatus: lastHttpStatus,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
         throw error;
       }
     }
