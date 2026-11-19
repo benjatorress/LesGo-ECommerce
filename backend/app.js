@@ -8,6 +8,7 @@ import reclamosRoutes from './routes/reclamosRoutes.js';
 import pagosRoutes from './routes/pagosRoutes.js';
 import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
 import { createInventoryService } from './services/inventoryService.js';
+import { createInventoryMovementService } from './services/inventoryMovementService.js';
 import { createOrderRepository } from './repositories/orderRepository.js';
 import { createCartRepository } from './repositories/cartRepository.js';
 import { createPaymentRepository } from './repositories/paymentRepository.js';
@@ -19,6 +20,7 @@ import { errorHandler } from './lib/errors.js';
 
 export function createApp({
   inventory,
+  inventoryMovement,
   orders,
   crm,
   carts,
@@ -28,16 +30,26 @@ export function createApp({
 } = {}) {
   const app = express();
   app.locals.inventory = inventory || createInventoryService();
+  app.locals.inventoryMovement = inventoryMovement || createInventoryMovementService();
   app.locals.orders = orders || createOrderRepository();
+  app.locals.pedidoReader = pedidoReader || (
+    app.locals.orders.mode === 'mock'
+      ? {
+          mode: 'mock',
+          listByCustomer: idCliente => app.locals.orders.list(idCliente),
+          getByCustomerAndOrderId: (idCliente, idPedido) => app.locals.orders.get(idCliente, idPedido)
+        }
+      : pedidoReadService
+  );
   app.locals.crm = crm || createCrmAdapter();
   app.locals.carts = carts || createCartRepository();
-  app.locals.pedidoReader = pedidoReader || pedidoReadService;
   app.locals.payments = payments || createStripeGateway();
   app.locals.paymentRepository = paymentRepository || createPaymentRepository();
   app.locals.paymentWebhooks = createStripeWebhookService({
     paymentRepository: app.locals.paymentRepository,
     orders: app.locals.orders,
-    crm: app.locals.crm
+    crm: app.locals.crm,
+    inventoryMovement: app.locals.inventoryMovement
   });
   app.use(cors());
 
@@ -51,6 +63,7 @@ export function createApp({
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     inventory: app.locals.inventory.mode,
+    inventoryMovement: app.locals.inventoryMovement.mode,
     persistence: app.locals.orders.mode,
     crm: app.locals.crm.mode,
     payments: app.locals.payments.mode,

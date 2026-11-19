@@ -1090,3 +1090,90 @@ test('webhook: CRM caído deja el pago Pagada, el outbox pending y no falla', as
   assert.equal(setup.pedidos[0].estado, 'Pagada');
   assert.equal((await setup.orders.get(1, pedido.id_pedido)).event.status, 'pending');
 });
+
+test('webhook: descuenta stock en modo mock una sola vez al confirmar pago', async () => {
+  const setup = paymentsSetup();
+  const pedido = await seedOrder(setup);
+  await OPEN_PAYMENT(setup, pedido);
+
+  const producto = await setup.inventory.get('lego-city-station');
+  const stockInicial = producto.stock;
+
+  const { createInventoryMovementService } = await import('../services/inventoryMovementService.js');
+  const inventoryMovement = createInventoryMovementService({ INVENTORY_MOVEMENT_MODE: 'mock' });
+
+  const service = createStripeWebhookService({
+    paymentRepository: setup.paymentRepository,
+    orders: setup.orders,
+    crm: setup.crm,
+    inventoryMovement
+  });
+
+  const event = stripeEvent('checkout.session.completed');
+  const first = await service.handleEvent(event);
+  assert.equal(first.transitioned, true);
+  assert.equal((await first.inventorySync).status, 'mock');
+  assert.equal((await setup.inventory.get('lego-city-station')).stock, stockInicial - 2);
+
+  // Replay del webhook: el stock NO vuelve a descontarse
+  const replay = await service.handleEvent(event);
+  assert.equal(replay.transitioned, false);
+  assert.equal((await setup.inventory.get('lego-city-station')).stock, stockInicial - 2);
+
+  // Restaurar stock en memoria para no afectar otros tests del proceso
+  const { PRODUCTOS } = await import('../data/productosData.js');
+  PRODUCTOS.find(p => p.id === 'lego-city-station').stock = stockInicial;
+});
+
+test('inventoryMovement: valida configuración, contrato HTTP POST /movimientos/reserva y conflicto 409', async () => {
+  const { createInventoryMovementService } = await import('../services/inventoryMovementService.js');
+
+  // 1. Modo inválido o falta de token en http falla al instanciar
+  assert.throws(() => createInventoryMovementService({ INVENTORY_MOVEMENT_MODE: 'invalido' }));
+  assert.throws(() => createInventoryMovementService({
+    INVENTORY_MOVEMENT_MODE: 'http',
+    INVENTORY_MOVEMENT_API_URL: 'http://localhost:3000'
+  }), /INVENTORY_API_TOKEN/);
+
+  // 2. Modo http envía el payload exacto esperado por Grupo 2 con Bearer token
+  let sentRequest;
+  const httpService = createInventoryMovementService({
+    INVENTORY_MOVEMENT_MODE: 'http',
+    INVENTORY_MOVEMENT_API_URL: 'http://localhost:3000',
+    INVENTORY_API_TOKEN: 'clave-secreta-ecommerce-123'
+  }, async (url, init) => {
+    sentRequest = { url, init };
+    return Response.json({ id_movimiento: 42, estado: 'PENDIENTE' }, { status: 201 });
+  });
+
+  const ok = await httpService.registerEgress({
+    idPedido: '15',
+    lineas: [{ id_producto: '7', cantidad: '2' }]
+  });
+  assert.equal(ok.status, 'reserved');
+  assert.equal(sentRequest.url, 'http://localhost:3000/api/v1/movimientos/reserva');
+  assert.equal(sentRequest.init.headers.Authorization, 'Bearer clave-secreta-ecommerce-123');
+  assert.deepEqual(JSON.parse(sentRequest.init.body), {
+    id_pedido: 15,
+    lineas: [{ id_producto: 7, cantidad: 2 }]
+  });
+
+  // 3. Rechaza slugs no numéricos en modo http antes de llamar a la red
+  await assert.rejects(
+    () => httpService.registerEgress({ idPedido: 15, lineas: [{ id_producto: 'lego-city-station', cantidad: 1 }] }),
+    /entero positivo/
+  );
+
+  // 4. Si Inventario responde 409 (sin stock disponible), registra el conflicto en history
+  const conflictService = createInventoryMovementService({
+    INVENTORY_MOVEMENT_MODE: 'http',
+    INVENTORY_MOVEMENT_API_URL: 'http://localhost:3000',
+    INVENTORY_API_TOKEN: 'clave-secreta-ecommerce-123'
+  }, async () => Response.json({ statusCode: 409, message: 'Stock insuficiente' }, { status: 409 }));
+
+  await assert.rejects(
+    () => conflictService.registerEgress({ idPedido: 16, lineas: [{ id_producto: 7, cantidad: 99 }] }),
+    { status: 503 }
+  );
+  assert.equal(conflictService.history.at(-1).status, 'out_of_stock_conflict');
+});
