@@ -99,3 +99,32 @@ test('GET /api/carrito: exige sesión y consulta el carrito del cliente de la se
     assert.equal(forbidden.status, 403);
   });
 });
+
+test('DELETE /api/carrito: exige sesión y vacía el carrito del cliente de la sesión', async () => {
+  const cleared = [];
+  const carts = {
+    clearByCustomer: async id => {
+      cleared.push(id);
+      return 2;
+    }
+  };
+  const borrar = (base, token) => fetch(`${base}/api/carrito`, {
+    method: 'DELETE',
+    headers: token ? { authorization: `Bearer ${token}` } : {}
+  });
+  await withServer(carts, async base => {
+    assert.equal((await borrar(base)).status, 401);
+
+    const token = issueSession({ id_cliente: 2, nombre: 'Felipe' });
+    const response = await borrar(base, token);
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.success, true);
+    assert.equal(data.eliminados, 2);
+    assert.deepEqual(cleared, [2]);
+
+    const employeeToken = issueSession({ id_empleado: 1 });
+    assert.equal((await borrar(base, employeeToken)).status, 403);
+    assert.deepEqual(cleared, [2]);
+  });
+});

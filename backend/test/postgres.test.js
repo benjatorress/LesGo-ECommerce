@@ -43,7 +43,7 @@ test('PostgreSQL aislado: commit cabecera/líneas/outbox, GET, rollback y concur
       observaciones: ''
     };
     const lines = [{
-      id_producto: '00000000-0000-4000-8000-000000000001',
+      id_producto: 1,
       cantidad: 2,
       precio_unitario: 10
     }];

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from './App';
 import { CartProvider, useCart } from './context/CartContext';
 import { PRODUCTS } from './data/products';
 import { CheckoutView } from './components/CheckoutView';
+import type { CrearPedidoPayload } from './services/checkoutContract';
 
 const product = { ...PRODUCTS[0], name: 'Producto actualizado desde Inventario', stock: 2 };
 const mount = () => render(<CartProvider><App /></CartProvider>);
 beforeEach(() => {
-  vi.stubEnv('VITE_CATALOG_SOURCE', 'local');
   localStorage.clear();
   sessionStorage.clear();
   window.history.replaceState({}, '', '/?view=catalog');
@@ -42,17 +42,21 @@ it('muestra en español cuando se alcanza el máximo de unidades disponibles', (
   expect(screen.getByText('1')).toBeTruthy();
 });
 
-it('catálogo local: muestra PRODUCTS sin consultar el backend', async () => {
-  const fetchMock = vi.fn().mockRejectedValue(new Error('Backend no disponible'));
+it('catálogo real: muestra los productos que devuelve el backend', async () => {
+  const apiProducts = [
+    { ...PRODUCTS[0], id: '1', name: 'Downtown', inventorySource: 'postgres' as const },
+    { ...PRODUCTS[1], id: '2', name: 'The City Tower', inventorySource: 'postgres' as const }
+  ];
+  const fetchMock = vi.fn().mockResolvedValue(
+    Response.json({ success: true, productos: apiProducts })
+  );
   vi.stubGlobal('fetch', fetchMock);
   mount();
 
-  await screen.findByTitle(PRODUCTS[0].name);
-  for (const product of PRODUCTS) {
-    expect(screen.getByTitle(product.name)).toBeTruthy();
-  }
-  expect(screen.getByRole('note').textContent).toContain('simulado');
-  expect(fetchMock).not.toHaveBeenCalled();
+  await screen.findByTitle('Downtown');
+  expect(screen.getByTitle('The City Tower')).toBeTruthy();
+  expect(screen.queryByRole('note')).toBeNull();
+  expect(fetchMock).toHaveBeenCalled();
 });
 
 function completeShippingForm() {
@@ -114,28 +118,64 @@ it('carrito → checkout: resumen actual, formulario y confirmación sin pago ni
   fireEvent.click(screen.getByRole('button', { name: 'Revisar pedido' }));
   expect(screen.getByRole('heading', { name: 'Checkout' })).toBeTruthy();
   expect(screen.getByLabelText('Resumen final de la orden').textContent).toContain('2 × $89.990 = $179.980');
+  const paymentMethod = screen.getByLabelText('Método de pago');
+  expect(paymentMethod.getAttribute('aria-describedby')).toBe('checkout-payment-note');
+  expect(screen.getByText('Serás redirigido a Stripe para completar el pago de forma segura.')).toBeTruthy();
+  fireEvent.change(paymentMethod, { target: { value: 'transferencia' } });
+  expect(screen.queryByText('Serás redirigido a Stripe para completar el pago de forma segura.')).toBeNull();
+  fireEvent.change(paymentMethod, { target: { value: 'tarjeta' } });
   completeShippingForm();
-  fireEvent.click(screen.getByRole('button', { name: 'Confirmar pedido' }));
-  expect(screen.getByRole('status').textContent).toContain('No se ha creado un pedido ni procesado un pago');
+  fireEvent.click(screen.getByRole('button', { name: 'Pagar con tarjeta' }));
+  expect((await screen.findByRole('status')).textContent).toContain('Inicia sesión como cliente');
   expect(fetchMock).not.toHaveBeenCalled();
   expect(JSON.parse(localStorage.getItem('lesgo_cart') || '[]')[0].quantity).toBe(2);
   fireEvent.click(screen.getByRole('button', { name: 'Volver al carrito' }));
   expect(screen.getByRole('heading', { name: 'Carrito' })).toBeTruthy();
 });
 
-it('callback preparado para SCRUM-20: payload sin precio/cliente, fallo conserva carrito', async () => {
+it('checkout muestra la imagen de cada producto y utiliza un marcador si falta o falla', () => {
+  const products = [
+    { ...PRODUCTS[0], image: '/products/item1_city.jpg' },
+    { ...PRODUCTS[1], image: '/products/item2_starwars.jpg' },
+    { ...PRODUCTS[2], image: '' }
+  ];
+  localStorage.setItem('lesgo_cart', JSON.stringify(products.map(item => ({ product: item, quantity: 1 }))));
+
+  render(
+    <CartProvider>
+      <CheckoutView onBack={() => {}} />
+    </CartProvider>
+  );
+
+  for (const item of products) {
+    const row = screen.getByText(item.name).closest('.checkout-summary-item');
+    expect(row).not.toBeNull();
+    const image = within(row as HTMLElement).getByRole('presentation');
+    expect(image.getAttribute('src')).toBe(item.image || '/product-placeholder.svg');
+  }
+
+  const firstRow = screen.getByText(products[0].name).closest('.checkout-summary-item') as HTMLElement;
+  const firstImage = within(firstRow).getByRole('presentation');
+  fireEvent.error(firstImage);
+  expect(firstImage.getAttribute('src')).toBe('/product-placeholder.svg');
+});
+
+it('callback del checkout: payload sin precio/cliente, clave de idempotencia y fallo conserva carrito', async () => {
   localStorage.setItem('lesgo_cart', JSON.stringify([{ product, quantity: 2 }]));
-  const confirm = vi.fn(async () => { throw new Error('Error de confirmación simulado'); });
+  const confirm = vi.fn<(payload: CrearPedidoPayload, idempotencyKey: string) => Promise<void>>(async () => {
+    throw new Error('Error de confirmación simulado');
+  });
   render(
     <CartProvider>
       <CheckoutView onBack={() => {}} onConfirm={confirm} />
     </CartProvider>
   );
   completeShippingForm();
-  fireEvent.click(screen.getByRole('button', { name: 'Confirmar pedido' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Pagar con tarjeta' }));
 
-  expect((await screen.findByRole('status')).textContent).toContain('Tu carrito se conserva');
-  expect(confirm).toHaveBeenCalledWith({
+  expect((await screen.findByRole('status')).textContent).toContain('Error de confirmación simulado');
+  const [payload, idempotencyKey] = confirm.mock.calls[0];
+  expect(payload).toEqual({
     items: [{ id_producto: product.id, cantidad: 2 }],
     envio: {
       direccion_entrega: 'Datos prueba',
@@ -146,5 +186,6 @@ it('callback preparado para SCRUM-20: payload sin precio/cliente, fallo conserva
     metodo_pago: 'tarjeta',
     observaciones: ''
   });
+  expect(idempotencyKey).toMatch(/^[a-zA-Z0-9_-]{8,128}$/);
   expect(JSON.parse(localStorage.getItem('lesgo_cart') || '[]')[0].quantity).toBe(2);
 });

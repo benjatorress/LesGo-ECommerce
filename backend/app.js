@@ -5,21 +5,57 @@ import authRoutes from './routes/authRoutes.js';
 import carritoRoutes from './routes/carritoRoutes.js';
 import pedidosRoutes from './routes/pedidosRoutes.js';
 import reclamosRoutes from './routes/reclamosRoutes.js';
+import pagosRoutes from './routes/pagosRoutes.js';
+import stripeWebhookRoutes from './routes/stripeWebhookRoutes.js';
 import { createInventoryService } from './services/inventoryService.js';
+import { createInventoryMovementService } from './services/inventoryMovementService.js';
 import { createOrderRepository } from './repositories/orderRepository.js';
 import { createCartRepository } from './repositories/cartRepository.js';
+import { createPaymentRepository } from './repositories/paymentRepository.js';
 import { createCrmAdapter } from './services/crmService.js';
+import { createStripeGateway } from './services/paymentService.js';
+import { createStripeWebhookService } from './services/stripeWebhookService.js';
 import { pedidoReadService } from './services/pedidosService.js';
 import { errorHandler } from './lib/errors.js';
 
-export function createApp({ inventory, orders, crm, carts, pedidoReader } = {}) {
+export function createApp({
+  inventory,
+  inventoryMovement,
+  orders,
+  crm,
+  carts,
+  pedidoReader,
+  payments,
+  paymentRepository
+} = {}) {
   const app = express();
   app.locals.inventory = inventory || createInventoryService();
+  app.locals.inventoryMovement = inventoryMovement || createInventoryMovementService();
   app.locals.orders = orders || createOrderRepository();
+  app.locals.pedidoReader = pedidoReader || (
+    app.locals.orders.mode === 'mock'
+      ? {
+          mode: 'mock',
+          listByCustomer: idCliente => app.locals.orders.list(idCliente),
+          getByCustomerAndOrderId: (idCliente, idPedido) => app.locals.orders.get(idCliente, idPedido)
+        }
+      : pedidoReadService
+  );
   app.locals.crm = crm || createCrmAdapter();
   app.locals.carts = carts || createCartRepository();
-  app.locals.pedidoReader = pedidoReader || pedidoReadService;
+  app.locals.payments = payments || createStripeGateway();
+  app.locals.paymentRepository = paymentRepository || createPaymentRepository();
+  app.locals.paymentWebhooks = createStripeWebhookService({
+    paymentRepository: app.locals.paymentRepository,
+    orders: app.locals.orders,
+    crm: app.locals.crm,
+    inventoryMovement: app.locals.inventoryMovement
+  });
   app.use(cors());
+
+  // ANTES de express.json(): Stripe firma el body crudo y `req.body` debe ser Buffer.
+  app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhookRoutes);
+
   app.use(express.json({ limit: '64kb' }));
   app.get('/api/health', (req, res) => res.json({
     status: 'ok',
@@ -27,8 +63,11 @@ export function createApp({ inventory, orders, crm, carts, pedidoReader } = {}) 
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     inventory: app.locals.inventory.mode,
+    inventoryMovement: app.locals.inventoryMovement.mode,
     persistence: app.locals.orders.mode,
-    crm: app.locals.crm.mode
+    crm: app.locals.crm.mode,
+    payments: app.locals.payments.mode,
+    paymentPersistence: app.locals.paymentRepository.mode
   }));
   app.use('/api/auth', authRoutes);
   app.use('/api/productos', productosRoutes);
@@ -36,6 +75,7 @@ export function createApp({ inventory, orders, crm, carts, pedidoReader } = {}) 
   app.use('/api/carrito', carritoRoutes);
   app.use('/api/pedidos', pedidosRoutes);
   app.use('/api/reclamos', reclamosRoutes);
+  app.use('/api/pagos', pagosRoutes);
   app.use((req, res) => res.status(404).json({ success: false, message: 'Ruta no encontrada.' }));
   app.use(errorHandler);
   return app;

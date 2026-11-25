@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { AppError } from '../lib/errors.js';
 
 const invalid = (message) => new AppError(400, 'INVALID_ORDER', message);
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// En modo postgres el id de producto es el entero de inventario.inv_producto.
+const numericIdPattern = /^\d+$/;
 const shippingFields = [
   'direccion_entrega',
   'comuna_entrega',
@@ -10,10 +11,20 @@ const shippingFields = [
   'telefono_contacto'
 ];
 
+// Estados internos de la BD → estados que entiende el frontend (y sus PASOS de
+// seguimiento). Los pedidos mock ya vienen con el estado visual en minúsculas,
+// por eso el fallback devuelve el valor original.
+const ESTADO_DOMINIO_A_VISUAL = {
+  Pendiente: 'recibida',
+  Pagada: 'pagada',
+  Enviada: 'enviada',
+  Entregada: 'entregada'
+};
+
 export const visualOrder = (pedido) => ({
   ...pedido,
   estado_dominio: pedido.estado,
-  estado: pedido.estado === 'Pendiente' ? 'recibida' : pedido.estado
+  estado: ESTADO_DOMINIO_A_VISUAL[pedido.estado] ?? pedido.estado
 });
 
 function validateRequest(body, customer, key) {
@@ -67,8 +78,8 @@ async function resolveLines(items, inventory, persistenceMode) {
 
   for (const [id, quantity] of items) {
     const product = await inventory.get(id);
-    if (persistenceMode === 'postgres' && !uuidPattern.test(product.id)) {
-      throw invalid('PostgreSQL requiere el UUID real de Inventario; no se convierten slugs.');
+    if (persistenceMode === 'postgres' && !numericIdPattern.test(product.id)) {
+      throw invalid('PostgreSQL requiere el id numérico real de Inventario; no se convierten slugs.');
     }
     if (canonicalIds.has(product.id)) {
       throw invalid('Producto duplicado mediante identificadores alternativos.');
@@ -102,7 +113,7 @@ async function resolveLines(items, inventory, persistenceMode) {
   return { lines, snapshots, total: totalCents / 100 };
 }
 
-export async function createOrder({ body, customer, key, inventory, orders, crm }) {
+export async function createOrder({ body, customer, key, inventory, orders, crm, deferCrm = false }) {
   const { order, items } = validateRequest(body, customer, key);
   const fingerprint = createHash('sha256')
     .update(JSON.stringify({ order, items }))
@@ -137,7 +148,9 @@ export async function createOrder({ body, customer, key, inventory, orders, crm 
   }
 
   let crmStatus = result.event.status;
-  if (crmStatus !== 'synced') {
+  // Con `deferCrm` el pedido se queda con CRM `pending` hasta que el webhook de
+  // pago lo confirme; así no se registra en el CRM un pedido nunca pagado.
+  if (!deferCrm && crmStatus !== 'synced') {
     try {
       const crmPayload = { ...result.event.payload, id_pedido: result.pedido.id_pedido };
       const crmKey = `lesgo-order-${customer.id_cliente}-${key}`;

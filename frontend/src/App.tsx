@@ -7,12 +7,16 @@ import { AboutView } from './components/AboutView';
 import { ContactView } from './components/ContactView';
 import { ProductDetailLoader } from './components/ProductDetailLoader';
 import { CheckoutView } from './components/CheckoutView';
+import { CheckoutSuccessView } from './components/CheckoutSuccessView';
 import { useNavigation } from './services/navigation';
 import { AuthModal } from './components/AuthModal';
 import { InfoModal } from './components/InfoModal';
 import { VentasModal } from './components/VentasModal';
 import type { Product } from './data/products';
 import { getSession, clearSession, getCarritoApi, type Usuario } from './services/api';
+import { crearPedidoApi } from './services/pedidosApi';
+import { crearSesionPagoApi, redirigirAStripe } from './services/pagosApi';
+import type { CrearPedidoPayload } from './services/checkoutContract';
 import { useCart } from './context/CartContext.tsx';
 import { OrdersView } from './components/OrdersView';
 import './App.css';
@@ -96,6 +100,39 @@ export function App() {
     if (cartItems.length) setCurrentView('checkout');
   };
 
+  /**
+   * Crea el pedido y continúa según el método de pago: la transferencia se
+   * confirma en la tienda y la tarjeta se cobra en Stripe. El carrito sólo se
+   * vacía cuando el pago ya no puede fallar.
+   */
+  const handleConfirmOrder = async (payload: CrearPedidoPayload, idempotencyKey: string) => {
+    if (!currentUser || currentUser.tipo !== 'cliente') {
+      setAuthModal('login');
+      throw new Error('Inicia sesión como cliente para completar la compra.');
+    }
+
+    const pedido = await crearPedidoApi(payload, idempotencyKey);
+
+    if (payload.metodo_pago === 'transferencia') {
+      clearCart();
+      setCurrentView('pedidos');
+      return;
+    }
+
+    const sesion = await crearSesionPagoApi(pedido.pedido.id_pedido);
+    if (sesion.pagado) {
+      // El backend concilió el cobro sin esperar al webhook: el pedido ya está pagado.
+      clearCart();
+      setCurrentView('pedidos');
+      return;
+    }
+    if (!sesion.url) {
+      throw new Error('No se pudo iniciar el pago con tarjeta. Inténtalo nuevamente.');
+    }
+    // Sin `clearCart()`: el carrito se vacía recién cuando el pago está pagado.
+    redirigirAStripe(sesion.url);
+  };
+
   const handleNavigateToCatalog = (category?: string) => {
     if (category) {
       setSelectedCatalogCategory(category);
@@ -172,7 +209,18 @@ export function App() {
           <AboutView onGoToCatalog={() => setCurrentView('catalog')} />
         )}
 
-        {currentView === 'checkout' && <CheckoutView onBack={() => setCurrentView('cart')} />}
+        {currentView === 'checkout' && (
+          <CheckoutView onBack={() => setCurrentView('cart')} onConfirm={handleConfirmOrder} />
+        )}
+
+        {currentView === 'checkout-success' && (
+          <CheckoutSuccessView
+            onClearCart={clearCart}
+            onGoToOrders={() => setCurrentView('pedidos')}
+            onGoToCatalog={() => setCurrentView('catalog')}
+            onBackToCheckout={() => setCurrentView('checkout')}
+          />
+        )}
 
         {currentView === 'contacto' && (
           <ContactView />

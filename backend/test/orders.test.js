@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createOrder } from '../services/orderService.js';
+import { createOrder, visualOrder } from '../services/orderService.js';
 import { createMockOrderRepository } from '../repositories/orderRepository.js';
 import { createPostgresOrderRepository } from '../repositories/postgresOrderRepository.js';
 import { createInventoryService } from '../services/inventoryService.js';
@@ -120,7 +120,7 @@ function schemaRows() {
   for (const [table_name, names] of Object.entries(columns)) {
     for (const column_name of names) {
       let data_type = 'text';
-      if (column_name === 'id_producto') data_type = 'uuid';
+      if (column_name === 'id_producto') data_type = 'integer';
       if (['id_cliente', 'id_pedido'].includes(column_name)) data_type = 'integer';
       rows.push({ table_name, column_name, data_type });
     }
@@ -156,7 +156,7 @@ test('PostgreSQL simulado: rollback y release ante error de detalle, sin COMMIT'
     metodo_pago: 'tarjeta'
   };
   const lines = [{
-    id_producto: '00000000-0000-4000-8000-000000000001',
+    id_producto: 1,
     cantidad: 1,
     precio_unitario: 1
   }];
@@ -292,9 +292,12 @@ test('endpoints: sesión real emitida, POST/GET compartidos, acceso ajeno denega
   const data = await created.json();
   assert.equal(data.pedido.estado_dominio, 'Pendiente');
   assert.equal(data.pedido.estado, 'recibida');
+  // Con tarjeta el CRM se difiere hasta que el webhook confirme el pago.
+  assert.equal(data.crm.status, 'pending');
+  assert.equal(data.message, 'Pedido creado en estado Pendiente; queda pendiente de pago.');
   const history = await fetch(`${base}/pedidos/cliente/1`, { headers }).then(response => response.json());
   assert.equal(history.pedidos[0].total_items, 2);
-  assert.equal(history.pedidos[0].crm.status, 'mock');
+  assert.equal(history.pedidos[0].crm.status, 'pending');
   assert.equal(history.pedidos[0].courier, null);
   assert.equal('has_crm_event' in history.pedidos[0], false);
   const detail = await fetch(`${base}/pedidos/cliente/1/${data.pedido.id_pedido}`, { headers }).then(r => r.json());
@@ -329,4 +332,33 @@ test('endpoints: sesión real emitida, POST/GET compartidos, acceso ajeno denega
   assert.equal((await syncCart(6)).status, 409);
   assert.equal((await syncCart(0)).status, 400);
   assert.equal((await syncCart(1, 'missing')).status, 404);
+});
+
+test('createOrder: deferCrm no envía al CRM y deja el outbox en pending', async () => {
+  const deps = dependencies();
+  let sent = 0;
+  deps.crm = { mode: 'mock', async send() { sent += 1; return 'mock'; } };
+
+  const result = await createOrder({ ...deps, body: body(), deferCrm: true });
+
+  assert.equal(sent, 0);
+  assert.equal(result.crmStatus, 'pending');
+  assert.equal((await deps.orders.get(1, result.pedido.id_pedido)).event.status, 'pending');
+});
+
+test('createOrder: sin deferCrm el CRM se envía al crear el pedido', async () => {
+  const deps = dependencies();
+  const result = await createOrder({ ...deps, body: body() });
+  assert.equal(result.crmStatus, 'mock');
+});
+
+test('visualOrder mapea el estado de dominio al estado visible y completa el seguimiento', () => {
+  assert.equal(visualOrder({ estado: 'Pendiente' }).estado, 'recibida');
+  assert.equal(visualOrder({ estado: 'Pagada' }).estado, 'pagada');
+  assert.equal(visualOrder({ estado: 'Pagada' }).estado_dominio, 'Pagada');
+  assert.equal(visualOrder({ estado: 'Enviada' }).estado, 'enviada');
+  assert.equal(visualOrder({ estado: 'Entregada' }).estado, 'entregada');
+  // Los pedidos mock ya traen el estado visual en minúsculas: no se reescribe.
+  assert.equal(visualOrder({ estado: 'pagada' }).estado, 'pagada');
+  assert.equal(visualOrder({ estado: 'desconocido' }).estado, 'desconocido');
 });

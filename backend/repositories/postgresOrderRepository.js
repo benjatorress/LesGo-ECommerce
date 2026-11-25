@@ -29,7 +29,7 @@ export function createPostgresOrderRepository(pool) {
     const hasType = (table, column, type) => rows.some(row => (
       row.table_name === table && row.column_name === column && row.data_type === type
     ));
-    if (!hasType('ecom_detalle_pedido', 'id_producto', 'uuid') ||
+    if (!hasType('ecom_detalle_pedido', 'id_producto', 'integer') ||
         !hasType('ecom_pedido', 'id_cliente', 'integer') ||
         !hasType('ecom_pedido', 'id_pedido', 'integer')) {
       throw new AppError(503, 'SCHEMA_NOT_READY', 'Tipos del esquema de pedidos incompatibles.');

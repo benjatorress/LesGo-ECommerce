@@ -1,4 +1,4 @@
-import { API_BASE_URL, getSession } from './api';
+import { request } from './http';
 import type { CrearPedidoPayload } from './checkoutContract';
 
 export type EstadoPedido = 'recibida' | 'pagada' | 'enviada' | 'entregada';
@@ -78,28 +78,6 @@ export interface NuevoReclamo {
   descripcion: string;
 }
 
-async function request(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
-  let res: Response;
-  try {
-    const token = getSession().token;
-    res = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      headers: {
-        ...init?.headers,
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-    });
-  } catch {
-    throw new Error('No se pudo conectar con el servidor. Inténtalo nuevamente.');
-  }
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    throw new Error(data.message || `Error HTTP ${res.status}`);
-  }
-  return data;
-}
-
 /** GET /api/pedidos/cliente/:id */
 export async function getPedidosApi(idCliente: number): Promise<PedidoResumen[]> {
   const data = await request(`/pedidos/cliente/${idCliente}`);
@@ -131,7 +109,7 @@ export interface CrearPedidoRespuesta {
   message: string;
 }
 
-/** SCRUM-20: conservar la misma clave durante reintentos de una confirmación. No procesa pagos. */
+/** SCRUM-20: conservar la misma clave durante reintentos de una confirmación. Sólo crea el pedido; el cobro ocurre en `/api/pagos/stripe/session`. */
 export async function crearPedidoApi(payload: CrearPedidoPayload, idempotencyKey: string): Promise<CrearPedidoRespuesta> {
   return await request('/pedidos', {
     method: 'POST',

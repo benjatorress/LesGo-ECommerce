@@ -23,6 +23,11 @@ const LATEST_CART_SQL = `
   ORDER BY fecha_creacion DESC, id_carrito DESC
   LIMIT 1`;
 
+const CLEAR_CART_SQL = `
+  DELETE FROM ecommerce_ventas.ecom_detalle_carrito
+  WHERE id_carrito = (${LATEST_CART_FILTER})
+  RETURNING id_detalle_car`;
+
 const CART_LINES_SQL = `
   SELECT d.id_detalle_car, d.id_producto, d.cantidad,
          p.sku, p.nombre_set, p.cant_piezas, p.activo AS producto_activo,
@@ -71,6 +76,21 @@ export function mapCartLine(row) {
 }
 
 export function createCartRepository(env = process.env) {
+  if (env.DB_ACCESS_ENABLED !== 'true' || !env.DB_HOST) {
+    return {
+      mode: 'mock',
+      async getByCustomer() {
+        return { carrito: null, items: [], omitidos: [] };
+      },
+      async updateQuantity() {
+        return null;
+      },
+      async clearByCustomer() {
+        return 0;
+      }
+    };
+  }
+  
   let poolPromise;
   const getPool = () => {
     poolPromise ||= import('../config/db.js').then(module => module.pool);
@@ -122,6 +142,20 @@ export function createCartRepository(env = process.env) {
         }
         console.error('Error consultando el carrito:', error.code, error.message);
         throw new AppError(503, 'CART_UNAVAILABLE', 'No se pudo consultar el carrito.');
+      }
+    },
+    /** Vacía el carrito más reciente del cliente. Devuelve la cantidad de líneas eliminadas. */
+    async clearByCustomer(customerId) {
+      try {
+        const pool = await getPool();
+        const { rows } = await pool.query(CLEAR_CART_SQL, [customerId]);
+        return rows.length;
+      } catch (error) {
+        if (error instanceof AppError) {
+          throw error;
+        }
+        console.error('Error vaciando el carrito:', error.code, error.message);
+        throw new AppError(503, 'CART_UNAVAILABLE', 'No se pudo vaciar el carrito.');
       }
     }
   };

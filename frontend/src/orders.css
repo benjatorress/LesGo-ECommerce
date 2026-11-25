@@ -170,6 +170,11 @@
   background: var(--lego-red-soft);
 }
 
+.return-request-open-btn {
+  margin-top: 12px;
+  text-decoration: none;
+}
+
 .order-detail-btn:focus-visible,
 .orders-primary-btn:focus-visible,
 .claim-open-btn:focus-visible,

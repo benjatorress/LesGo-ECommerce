@@ -1,4 +1,5 @@
 :root {
+  overflow-y: scroll;
   /* Paleta Lego Refinada y Profesional */
   --lego-red: #E52521;
   --lego-red-hover: #CC1F1C;
